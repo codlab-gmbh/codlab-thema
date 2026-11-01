@@ -1,6 +1,6 @@
 <h1 align="center">CodLab Thema</h1>
 
-<p align="center"><b>Ein GNOME-Desktop, der fertig wirkt: ein Grau, ein Blau, ein Mauszeiger, ein Dateimanager, der mehr kann als Explorer und Finder – und ein ehrlicher Bericht darüber, wie weit wir sind.</b></p>
+<p align="center"><b>Ein GNOME-Desktop, der fertig wirkt: ein Grau, ein Blau, ein Mauszeiger, ein Dateimanager auf dem Weg dazu, mehr zu können als Explorer und Finder – und ein ehrlicher Bericht darüber, wie weit wir sind.</b></p>
 
 <p align="center"><a href="README.md">English</a> · Deutsch · <a href="README.it.md">Italiano</a></p>
 
@@ -14,7 +14,7 @@
 1. [Das Problem: die Brüche](#1-das-problem-die-brüche)
 2. [Was wir gemessen haben](#2-was-wir-gemessen-haben)
 3. [Unsere Entscheidungen](#3-unsere-entscheidungen)
-4. [Dateien: mehr als Explorer und Finder](#4-dateien-mehr-als-explorer-und-finder)
+4. [Dateien: auf dem Weg über Explorer und Finder hinaus](#4-dateien-auf-dem-weg-über-explorer-und-finder-hinaus)
 5. [Apps starten wie auf dem Mac](#5-apps-starten-wie-auf-dem-mac)
 6. [Wie wir arbeiten](#6-wie-wir-arbeiten)
 7. [Ehrlicher Stand](#7-ehrlicher-stand)
@@ -38,8 +38,8 @@ benannt.
 
 ### 2.1 Wer Ihre Apps eigentlich zeichnet
 
-Die GNOME Shell und die GNOME-Apps verwenden GTK 4 mit libadwaita. Die Apps, die man den ganzen Tag benutzt, oft
-nicht. Auf unserem Prototyp verwenden von den **17 im Dock angehefteten Apps nur 5** GTK 4 mit libadwaita:
+Die GNOME-eigenen Apps verwenden GTK 4 mit libadwaita (die GNOME Shell selbst zeichnet mit ihrem eigenen Toolkit, St auf
+Clutter). Die Apps, die man den ganzen Tag benutzt, oft nicht. Auf unserem Prototyp verwenden von den **17 im Dock angehefteten Apps nur 5** GTK 4 mit libadwaita:
 
 | Toolkit | Apps im Dock |
 |---|---|
@@ -101,7 +101,7 @@ einzigen Anmeldung**. Nach der Umwandlung des Themes in das SVG-Format der Shell
 
 ### 2.4 Warum nicht einfach ein anderes Theme?
 
-- **Ein vollständiges Theme über libadwaita bricht zweimal im Jahr.** Das Ausgangs-Theme legte 9.536 Zeilen CSS mit
+- **Ein vollständiges Theme über libadwaita muss bei jeder GNOME-Version neu angepasst werden, zweimal im Jahr.** Das Ausgangs-Theme legte 9.536 Zeilen CSS mit
   höchster Priorität über libadwaita. Es änderte Formen, aber nicht die Grundgrautöne (daher die Brüche oben), und es
   veränderte sogar App-Layouts: Ein Taschenrechner war 365 px breit statt 360.
 - **Distributionen, die nahtlos wirken, verdecken die Brüche meist nur.** Zorin OS etwa patcht libadwaita, damit sein
@@ -120,8 +120,8 @@ einzigen Anmeldung**. Nach der Umwandlung des Themes in das SVG-Format der Shell
 | **Ein Grau, ein Blau, ein Radius** | Die Flächen von libadwaita, das System-Blau von GNOME als Akzent, 15 px Fensterradius | Der Systemakzent erreicht die Shell und Flatpak-Apps von selbst; bei keiner Version muss man etwas nachziehen. |
 | **Symbole und Ampelknöpfe von Colloid** | Das Colloid-Symbolset; Fensterknöpfe als 16-px-Kreise mit 30 px Abstand, gezeichnet von wenigen eigenen Regeln, identisch bei GTK 4, GTK 3 und X11-Rahmen; grau in inaktiven Fenstern | Der Charakter, den man mag, bleibt – bei einem Bruchteil der Pflege eines vollständigen Themes. |
 | **Ein Mauszeiger** | Der Colloid-Zeiger im SVG-Format der Shell, dazu Bitmaps für GTK 3 und X11 | Ein Pfeil, scharf auch bei gebrochener Skalierung. |
-| **Flüssiges Glas** | Obere Leiste, Dock und Pop-ups der Shell nutzen einen Lichtbrechungseffekt (über die Erweiterung *Blur my Shell*), abgestimmt auf eine getönte Variante, die Richtung von macOS 27 | Jeder Text und jedes Symbol auf dem Glas wird gegen die WCAG-Kontrastregel geprüft; eine Variante, die irgendein Element gegenüber vorher verschlechtert, wird verworfen. Die helle Variante (4,37:1) und die Voreinstellung der Erweiterung (2,97:1) fielen durch. |
-| **Ein leistungsfähigeres Dateien** | Patches und Erweiterungen für Nautilus, ausgeliefert als eigener Build des Pakets | §4 |
+| **Flüssiges Glas** | Obere Leiste, Dock und Pop-ups der Shell nutzen einen Lichtbrechungseffekt (über die Erweiterung *Blur my Shell*), abgestimmt auf eine getönte Variante, die Richtung von macOS 27 | Jeder aktive Text und jedes aktive Symbol wird gegen die WCAG-Kontrastschwellen geprüft (4,5:1 für Text, 3:1 für Symbole); eine Variante wird verworfen, wenn ein Element unter seine Schwelle fällt, außer es lag schon vorher darunter und wird nicht schlechter. Die helle Variante (4,37:1) und die Voreinstellung der Erweiterung (2,97:1) fielen durch. |
+| **Ein leistungsfähigeres Dateien** | Patches und Erweiterungen für Nautilus, als eigener Build des Pakets | §4 |
 | **Ein App-Starter wie auf dem Mac** | Ein Vollbild-Starter und ein hüpfendes Dock-Symbol, als Erweiterungen der GNOME Shell | §5 |
 
 Die Token-Datei ist klein und lesbar. Ein Auszug aus der echten Datei (die Schlüssel sind italienisch: *accento* =
@@ -148,11 +148,12 @@ installiert):
 
 ![Schnelleinstellungsmenü vorher mit einfacher Unschärfe und nachher mit getöntem flüssigem Glas](docs/img/glass-quick-settings.png)
 
-## 4. Dateien: mehr als Explorer und Finder
+## 4. Dateien: auf dem Weg über Explorer und Finder hinaus
 
 Als Werkzeug ist der Windows-Explorer vollständiger als GNOME Dateien (Nautilus): Detailbereich, Gruppierung,
 Metadatenspalten, ein Suchbereich. Dateien ist aufgeräumter und einheitlicher. Wir schließen die Lücke in Dateien selbst,
-in kleinen Versionen unseres eigenen Builds (`…codlab`), jede mit einem Rückweg zur vorherigen.
+in kleinen Versionen unseres eigenen Builds (`…codlab`), jede mit einem Rückweg zur vorherigen. Mehr zu können als Explorer
+und Finder ist das Ziel von v1 (§9); die Tabelle zeigt, wo wir heute stehen.
 
 | Funktion | Was sie tut | Stand |
 |---|---|---|
@@ -160,8 +161,8 @@ in kleinen Versionen unseres eigenen Builds (`…codlab`), jede mit einem Rückw
 | **RAW-Vorschaubilder** | Vorschauen für CR2, CR3, NEF, ARW, RAF, DNG, ORF und RW2 aus dem in der Datei eingebetteten JPEG; keine neuen Pakete | ✅ installiert · freigegeben · geprüft mit einem synthetischen Korpus, *teilweise* bei echten Kameradateien |
 | **Fotospalten** | Abmessungen, Kamera und Aufnahmedatum in der Listenansicht | ✅ installiert · freigegeben |
 | **Suche „nur hier"** | „Nur hier" oder „auch in Unterordnern" im Such-Pop-over, wie im Explorer; mit „nur hier" wird kein Ordner unterhalb des aktuellen geöffnet | ✅ installiert · freigegeben |
-| **Detailbereich** | Alt+P oder das Menü: große Vorschau und Metadaten der gewählten Datei (EXIF mit Ausrichtung, Dauer und Auflösung von Videos, Gesamtgröße eines Ordners); der Zustand bleibt gespeichert; keine neuen Abhängigkeiten | ✅ installiert · freigegeben |
-| **Gruppieren nach** | Typ, Datum oder Größe, mit Abschnittsüberschriften wie im Explorer | 🧪 geschrieben und isoliert getestet · Prüfung noch nicht begonnen |
+| **Detailbereich** | Alt+P oder das Menü: große Vorschau und Metadaten der gewählten Datei (EXIF mit Ausrichtung, Dauer und Auflösung von Videos; bei mehreren gewählten Dateien deren Gesamtgröße); der Zustand bleibt gespeichert; keine neuen Abhängigkeiten | ✅ installiert · freigegeben |
+| **Gruppieren nach** | Typ, Datum oder Größe, mit Abschnittsüberschriften wie im Explorer | 🧪 geschrieben und isoliert getestet · Prüfung ausstehend |
 | **Seitenleisten-Blöcke** | Gruppen wie *Laufwerke* und *Arbeit*, mit Laufwerksnamen, Farben und Füllstandsbalken | ✅ auf dem Prototyp installiert · noch nicht geprüft · soll vom Benutzer konfigurierbar werden |
 | Als Nächstes | Konfigurierbare Blöcke, Doppelfenster, eine Startansicht | 📋 geplant |
 
@@ -178,16 +179,17 @@ macOS 26 hat das Launchpad zugunsten einer „Apps"-Ansicht und Spotlight entfer
 fehlt, ist die Geste: **eine Taste, alle Apps, tippen, los.** Wir haben sie für die GNOME Shell 51 als zwei Erweiterungen
 gebaut:
 
-- **Launchpad CodLab** – Super öffnet ein Vollbild-Raster aller Apps über dem Glas, der Schreibtisch blendet an Ort und
+- **Launchpad CodLab** (Arbeitstitel) – Super öffnet ein Vollbild-Raster aller Apps über dem Glas, der Schreibtisch blendet an Ort und
   Stelle aus; Tippen filtert; Esc schließt mit einem Druck; Super+W zeigt die Fenster.
 - **Hüpfen im Dock** – das Dock-Symbol hüpft, während eine App startet, wie unter macOS, auch wenn die App langsam
   startet. Genau dort scheiterte die erste Version; der Test simuliert jetzt einen Start von drei Sekunden.
 
 Ein Spotlight-Nachbau von Dritten wurde getestet und verworfen: Er meldete Fehler unter Shell 51, übernahm die Suche
-und brachte die isolierte Test-Shell einmal zum Absturz. Ein eigenes Spotlight ist der nächste Schritt.
+und brachte die isolierte Test-Shell einmal zum Absturz. Eine eigene Suche im Stil von Spotlight ist der nächste Schritt.
 
 **Stand:** in der isolierten Sitzung nachgewiesen, noch nicht installiert. Einer der beiden Prüfer hat freigegeben, der
-andere noch nicht (Bedienbarkeit 9,6 bei einer Schwelle von 9,8). *Bildschirmfotos folgen: Die aus der Testsitzung
+andere noch nicht (Bedienbarkeit 9,6 bei einer Schwelle von 9,8); die Korrekturen dieser Punkte sind geschrieben und warten
+auf eine neue Prüfung. *Bildschirmfotos folgen: Die aus der Testsitzung
 zeigen ein Hintergrundbild eines Dritten und ein persönliches Dock und werden auf neutralem Hintergrund neu
 aufgenommen.*
 
@@ -199,13 +201,13 @@ Jedes Stück durchläuft dieselbe Kette, und auf die Kette kommt es an:
    Modellen. Die beiden Prüfer, die freigeben, lesen das Urteil des anderen nicht, und **sie führen aus**: Sie
    reproduzieren Fehler, machen Rot-vorher/Grün-nachher-Prüfungen und Mutationstests (absichtlich kaputte Kopien, die
    die Tests erkennen müssen). **Wer schreibt, gibt die eigene Arbeit nie frei.**
-2. **Eine Note pro Bereich, kein Durchschnitt.** Ein Stück wird bei 9,5 von 10 in jedem Bereich ausgeliefert. Für den
+2. **Eine Note pro Bereich, kein Durchschnitt.** Ein Stück kommt nur bei 9,5 von 10 in jedem Bereich ins Paket. Für den
    Desktop liegt die Latte bei **9,8 pro Bereich**, dazu ausdrückliche Felder gegen macOS 27 und Windows 11 – „schöner:
    ja oder nein, mit Quelle und Beleg". Eine 9,7 ist ein Nein.
 3. **Ein Tor vor jeder Prüfung.** Sauberer Checkout, vollständige Testsuite und ein Prüfprogramm, das tatsächlich rot
    werden kann. Eine Prüfung, die nie fehlschlägt, prüft nichts.
 4. **Isolation.** Jeder visuelle Test läuft in einer isolierten GNOME Shell ohne Bildschirm mit kopierter
-   Einstellungsdatenbank – nie in der laufenden Sitzung, keine Tastendrücke, keine Klicks.
+   Einstellungsdatenbank – nie in der laufenden Sitzung: dort keine Tastendrücke und keine Klicks.
 5. **Zuerst der Rückweg.** Jede Änderung ist eine nummerierte Scheibe mit festgehaltenem Vorher-Zustand; ihr Rückweg
    wird ausgeführt und gemessen, bevor die Scheibe zählt.
 6. **Ehrliche Messungen.** Zeiten werden nur auf einer unbelasteten Maschine gemessen (Linux-Pressure-Stall-Information
@@ -219,23 +221,24 @@ Rot-vorher/Grün-nachher-Beleg für jeden Fehler gaben beide frei, und es wurde 
 
 ## 7. Ehrlicher Stand
 
-Stand 1. November 2026, auf der Prototyp-Workstation:
+Stand 1. November 2026, auf der Prototyp-Workstation. „Installiert" heißt dort installiert, wo Stücke erprobt werden,
+bevor es das Paket gibt; die letzte Spalte sagt, was die unabhängigen Prüfer freigegeben haben.
 
 | Stück | Auf dem Prototyp | Unabhängige Prüfung |
 |---|---|---|
 | Verfeinerte Adwaita-Basis aus einer Token-Datei (ein Grau, ein Blau, ein Radius) | ✅ installiert | 🟡 Korrekturen und Tests von beiden freigegeben; die 9,8-Latte „besser als macOS 27 und Windows 11" noch nicht (9,5 · 9,7) |
 | Ampelknöpfe bei GTK 4, GTK 3 und X11-Rahmen | ✅ installiert | 🟡 wie oben · Qt behält graue Knöpfe (*teilweise*; ein Umweg ist vorbereitet, nicht installiert) |
 | Ein Mauszeiger (SVG für die Shell, Bitmaps für GTK 3 und X11) | ✅ installiert | 🟡 einer von zwei bei 9,8 (9,8 · 9,7) |
-| Flüssiges Glas, getönt, in der Shell | ✅ installiert am 1. November, auf ausdrückliche Entscheidung des Eigentümers | 🟡 einer von zwei freigegeben; der andere: 9,1 bei 9,5 für „Schönheit gegenüber macOS 27" (Tiefe der großen Flächen) |
-| Flüssiges Glas, nächste Abstimmung (neueres *Blur my Shell*) | 🧪 vorbereitet, nicht installiert | ⏳ nicht geprüft |
-| Glas in den Apps (GTK 4, zuerst die Seitenleiste von Dateien) | 🧪 in Arbeit | ⏳ nicht geprüft |
-| Dateien 1.7.1: Elementanzahl, RAW-Vorschauen, Fotospalten, Suche „nur hier" | ✅ installiert | ✅ von beiden freigegeben nach einer Abschlussrunde · RAW *teilweise* bei echten Kameradateien |
-| Dateien 1.8.1: Detailbereich | ✅ installiert | ✅ von beiden freigegeben nach einer Abschlussrunde |
-| Dateien 1.9: Gruppieren nach | 🧪 in Arbeit | ⏳ Prüfung noch nicht begonnen |
+| Flüssiges Glas, getönt, in der Shell | ✅ installiert am 1. November, auf ausdrückliche Entscheidung des Eigentümers | 🟡 einer von zwei freigegeben; der andere: 9,1 bei 9,5 für „Schönheit gegenüber macOS 27" (große Flächen wirken auf hellem Hintergrund flach) |
+| Flüssiges Glas, nächste Abstimmung (neueres *Blur my Shell*) | 🧪 vorbereitet, nicht installiert | ⏳ geprüft, von keinem der beiden Prüfer freigegeben |
+| Glas in den Apps (GTK 4, zuerst die Seitenleiste von Dateien) | 🧪 in Arbeit | ⏳ erste Prüfung von keinem der beiden Prüfer freigegeben; Korrekturen in Arbeit |
+| Dateien 1.7.1: Elementanzahl, RAW-Vorschauen, Fotospalten, Suche „nur hier" | ✅ installiert am 31. Oktober; in 1.8.1 enthalten | ✅ von beiden freigegeben nach einer Abschlussrunde · RAW *teilweise* bei echten Kameradateien |
+| Dateien 1.8.1: Detailbereich | ✅ installiert am 1. November | ✅ von beiden freigegeben nach einer Abschlussrunde |
+| Dateien 1.9: Gruppieren nach | 🧪 geschrieben und isoliert getestet | ⏳ Prüfung ausstehend |
 | Seitenleisten-Blöcke von Dateien mit Laufwerksnamen, Farben und Füllstandsbalken | ✅ installiert | ⏳ noch nicht geprüft |
-| Launchpad CodLab und Hüpfen im Dock | 🧪 vorbereitet, nicht installiert | 🟡 einer von zwei freigegeben; der andere: Bedienbarkeit 9,6 bei 9,8 |
+| Launchpad CodLab und Hüpfen im Dock | 🧪 vorbereitet, nicht installiert | 🟡 einer von zwei freigegeben; der andere: Bedienbarkeit 9,6 bei 9,8 · Korrekturen geschrieben, neue Prüfung ausstehend |
 | Chrome folgt dem System-Theme | 🧪 vorbereitet · braucht einen Klick in den Einstellungen von Chrome | 🟡 9,7 · 9,7 |
-| Einheitliche Symbole im Benachrichtigungsfeld | ⚠️ *teilweise* | manche Apps von Dritten laden ihr Symbol über einen Dateipfad oder als Bitmap: Eine Überschreibung auf Benutzerebene gibt es nicht |
+| Einheitliche Symbole im Benachrichtigungsfeld | ⚠️ *teilweise* | 🟡 nicht freigegeben (9,2 · 9,4): Manche Apps von Dritten laden ihr Symbol über einen Dateipfad oder als Bitmap, und eine Überschreibung auf Benutzerebene gibt es nicht |
 | Das Paket: `codlab-thema`, signiertes Repository, automatischer Neubau | 📋 geplant | – |
 
 ✅ erledigt · 🟡 teilweise freigegeben · 🧪 vorbereitet oder in Arbeit · ⏳ ausstehend · ⚠️ teilweise · 📋 geplant
@@ -267,9 +270,9 @@ Einstellungs-App. Das Metapaket `codlab-thema` zieht nach:
 | Signiertes Repository | `codlab-repo` |
 
 Grundsätze: **die Aktualisierungen der Distribution nie blockieren** – fehlt unser Build oder kommt er später, gewinnt
-das Fedora-Paket, und der Desktop fällt auf Standard-Adwaita zurück; nichts geht kaputt. Pakete werden auf einer eigenen
-Build-Maschine gebaut und anderswo signiert; die Signaturschlüssel bewegen sich nie. Installation und vollständiger
-Rückweg werden vor jeder Version in einer sauberen virtuellen Maschine getestet. Die nächste GNOME-Version (52) wird für
+das Fedora-Paket, und der Desktop fällt auf Standard-Adwaita zurück; nichts geht kaputt. Pakete werden künftig auf einer
+eigenen Build-Maschine gebaut und anderswo signiert; die Signaturschlüssel bewegen sich nie. Installation und
+vollständiger Rückweg werden künftig vor jeder Version in einer sauberen virtuellen Maschine getestet. Die nächste GNOME-Version (52) wird für
 den 17. März 2027 erwartet.
 
 | Schritt | Inhalt |
@@ -283,17 +286,18 @@ den 17. März 2027 erwartet.
 | I4 | Pakete, signiertes Repository, getesteter Rückweg |
 | I5 | Automatischer Neubau bei jeder Aktualisierung der Distribution, mit Tor |
 | | **→ CodLab Thema 1.0** |
-| I6–I13 | Dateien: Detailbereich, Gruppieren und Filter, Schlagwörter, Tippen-und-Springen, Startansicht, Doppelfenster → **v1, „besser als Explorer und Finder"** |
+| I6–I13 | Dateien: Detailbereich (vorgezogen erledigt, 1.8.1), Gruppieren (in Arbeit, 1.9) und Filter, Schlagwörter, Tippen-und-Springen, Startansicht, Doppelfenster → **v1, das Ziel: „besser als Explorer und Finder"** |
 
 Unsere Schätzung in Prüfketten-Tagen (ein Schritt durch Schreiben, Tor und zwei ausführende Prüfungen, höchstens drei
 Runden): **16–23 für Version 1.0** und **38–57 für v1**; 7–10 pro GNOME-Version für die Pflege von 1.0. Zuerst kommen
-unsere eigenen Rechner; ein öffentliches Repository nach einer stabilen Version.
+unsere eigenen Rechner; ein öffentliches Paket-Repository nach einer stabilen Version.
 
 ## 10. Namen, Dank, Lizenz
 
 **Namen.** CodLab Thema ist ein Arbeitstitel. Es steht in keiner Verbindung zur GNOME Foundation, zu Fedora, Apple oder
-Microsoft und wird von ihnen nicht unterstützt. Wir verwenden ihre Namen nicht in unseren Produktnamen und kopieren
-keine ihrer Symbole, Mauszeiger oder Schriften. „Flüssiges Glas" beschreibt den Effekt; unserer heißt CodLab Vetro.
+Microsoft und wird von ihnen nicht unterstützt. Unsere Produktnamen werden ihre Namen nicht verwenden („Launchpad CodLab" ist nur der Arbeitstitel
+eines Prototyps, nach der macOS-Funktion, die er nachbildet), und wir kopieren keine ihrer Symbole, Mauszeiger oder
+Schriften. „Flüssiges Glas" beschreibt den Effekt; unserer heißt CodLab Vetro.
 
 **Aufgebaut auf der Arbeit** des GNOME-Projekts (Shell, Mutter, GTK, libadwaita, Dateien), von adw-gtk3, den Colloid-
 Symbol- und -Zeiger-Themes, der Erweiterung *Blur my Shell* und von Fedora. Danke.
@@ -302,4 +306,4 @@ Symbol- und -Zeiger-Themes, der Erweiterung *Blur my Shell* und von Fedora. Dank
 
 ---
 
-<p align="center">Ein Projekt von <a href="https://codlab.de/projects/">CodLab</a> · Regensburg</p>
+<p align="center">Ein Projekt von <a href="https://codlab.de/projects/">CodLab</a> · Raum Regensburg</p>
