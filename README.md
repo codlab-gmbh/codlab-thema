@@ -327,9 +327,37 @@ remove it.
 | [`nautilus/codlab`](nautilus/codlab/) | Nautilus 51.1-2.4 — the patch series for Files (sidebar blocks, details pane, search "only here", group by, group settings) and its spec |
 | [`nautilus/integrazione`](nautilus/integrazione/) | `nautilus-codlab-integrazione`, `codlab-repo` — automatic rebuild on top of every Fedora Nautilus, local repository, RAW thumbnails, photo columns |
 
-All pieces target GNOME Shell 51 and Files (Nautilus) 51 on Fedora 45. No binary packages are published here: Files
-is rebuilt from Fedora's source package with the patch series. The review status of each piece, as of 1 November, is
+All pieces target GNOME Shell 51 and Files (Nautilus) 51 on Fedora 45. RPM and DEB packages contain the extensions;
+Files itself is rebuilt separately from Fedora's source package with the patch series. The review status of each piece, as of 1 November, is
 in [§7](#7-honest-status). Licences: see [LICENSE.md](LICENSE.md).
+
+## 12. Packages and source installation
+
+The `codlab-thema` RPM (Fedora 45, noarch) and DEB (Debian/Ubuntu, all) install ten system extensions,
+compiled settings, symbolic icons, glass effects inside Files and documentation. They require **GNOME Shell 51**,
+**Nautilus 51**, nautilus-python and **GTK 4.24**. Older desktops cannot satisfy these dependencies; the DEB does
+not upgrade a distribution to GNOME 51. The package contains no Nautilus binary, report or screenshot.
+
+Install the downloaded package with your distribution's administrator package manager:
+
+```sh
+dnf install ./codlab-thema-0.1.0-1.fc45.noarch.rpm
+# Debian/Ubuntu, on a system meeting the version requirements:
+apt install ./codlab-thema_0.1.0-1_all.deb
+```
+
+Then, as the desktop user, run `codlab-thema attiva`, `codlab-thema stato`, or `codlab-thema disattiva`.
+Installation changes no user settings. New system extensions become visible at the next login. Run `disattiva`
+before removing the package. Personal copies with the same extension UUID take precedence and must be resolved
+by their owner before activation. Dash to Dock is an optional dependency for the dock features.
+
+From a clean source checkout, run `packaging/build.sh /absolute/path/outside/the/repository/dist`.
+Build requirements, behaviour and removal are in [the installed package guide](packaging/README.md).
+The script runs `rpmbuild` with `%check` and `dpkg-deb` without root. Use the distribution package manager to
+install its output; individual component READMEs also describe manual source installation. The Fedora 45
+[Nautilus spec and patch series](nautilus/codlab/) remain separate source-only builds. The series does not apply
+to Nautilus 48.3 shipped by [Debian stable](https://packages.debian.org/source/trixie/nautilus); that port is a
+separate increment. The packaging checks run in isolated roots; they do not certify a graphical session.
 
 ## Sostieni CodLab Thema
 

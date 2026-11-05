@@ -337,9 +337,38 @@ Englisch —, das sagt, was das Teil tut und wie man es installiert und entfernt
 | [`nautilus/codlab`](nautilus/codlab/) | Nautilus 51.1-2.4 — die Patch-Serie für Dateien (Seitenleisten-Blöcke, Detailbereich, Suche „nur hier“, Gruppieren nach, Gruppen-Einstellungen) und ihre Spec |
 | [`nautilus/integrazione`](nautilus/integrazione/) | `nautilus-codlab-integrazione`, `codlab-repo` — automatischer Neubau auf jedem Nautilus von Fedora, lokales Repository, RAW-Vorschaubilder, Foto-Spalten |
 
-Alle Teile sind für GNOME Shell 51 und Dateien (Nautilus) 51 auf Fedora 45. Binärpakete werden hier nicht
-veröffentlicht: Dateien wird aus dem Quellpaket von Fedora mit der Patch-Serie neu gebaut. Den Prüfstand jedes Teils,
+Alle Teile sind für GNOME Shell 51 und Dateien (Nautilus) 51 auf Fedora 45. RPM- und DEB-Pakete enthalten die
+Erweiterungen; Dateien selbst wird separat aus dem Fedora-Quellpaket mit der Patch-Serie neu gebaut. Den Prüfstand jedes Teils,
 Stand 1. November, nennt [§7](#7-ehrlicher-stand). Lizenzen: siehe [LICENSE.md](LICENSE.md).
+
+## 12. Pakete und Installation aus dem Quellcode
+
+Das RPM für Fedora 45 (noarch) und das DEB für Debian/Ubuntu (all) enthalten zehn Systemerweiterungen,
+kompilierte Einstellungen, Symbole, das Glas in Dateien und Dokumentation. Voraussetzung sind **GNOME Shell 51**,
+**Nautilus 51**, nautilus-python und **GTK 4.24**. Ältere Desktops erfüllen diese Abhängigkeiten nicht; das DEB
+aktualisiert die Distribution nicht auf GNOME 51. Nautilus-Binärdateien, Berichte und Bildschirmfotos sind ausgeschlossen.
+
+Mit der Paketverwaltung der Distribution als Administrator installieren:
+
+```sh
+dnf install ./codlab-thema-0.1.0-1.fc45.noarch.rpm
+# Debian/Ubuntu mit den erforderlichen Versionen:
+apt install ./codlab-thema_0.1.0-1_all.deb
+```
+
+Danach als Desktop-Benutzer: `codlab-thema attiva`, `codlab-thema stato`, `codlab-thema disattiva`.
+Die Installation ändert keine Benutzereinstellungen. Neue Systemerweiterungen sind nach der nächsten Anmeldung
+verfügbar. Vor der Paketentfernung `disattiva` ausführen. Persönliche Kopien mit derselben UUID haben Vorrang und
+müssen vor der Aktivierung vom Besitzer behandelt werden. Dash to Dock ist für die Dock-Funktionen optional.
+
+Aus einem sauberen Checkout: `packaging/build.sh /absoluter/pfad/ausserhalb/des/repository/dist`.
+Voraussetzungen und Entfernung stehen in der [mitgelieferten Anleitung](packaging/README.md). Das Skript führt
+`rpmbuild` einschließlich `%check` und `dpkg-deb` ohne Root aus. Die erzeugten Pakete werden über die
+Paketverwaltung installiert; die Komponenten-READMEs beschreiben außerdem die manuelle Installation.
+[Spec und Patch-Serie für Nautilus auf Fedora 45](nautilus/codlab/) bleiben separate Quellcode-Builds.
+Die Serie lässt sich nicht auf Nautilus 48.3 aus [Debian stable](https://packages.debian.org/source/trixie/nautilus)
+anwenden; diese Portierung ist ein eigener Schritt. Die Paketprüfungen laufen in isolierten Wurzeln und bestätigen
+keine grafische Sitzung.
 
 ## Sostieni CodLab Thema
 
