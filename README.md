@@ -4,10 +4,11 @@
 
 <p align="center">English · <a href="README.de.md">Deutsch</a> · <a href="README.it.md">Italiano</a></p>
 
-> **Status, 1 November 2026.** A working prototype on one development workstation (Fedora 45, GNOME Shell 51,
-> GTK 4.24, libadwaita 1.10), **not yet an installable package**. This repository is a public report: what we
-> measured, what we chose, what is done and what is not. Code and packages will be published here piece by piece,
-> once each piece has passed independent review.
+> **Status, 5 November 2026.** A working prototype on one development workstation (Fedora 45, GNOME Shell 51,
+> GTK 4.24, libadwaita 1.10), **not yet an installable package**. This repository is a public report — what we
+> measured, what we chose, what is done and what is not — and, since 5 November, also the **source code of the pieces
+> installed on that workstation**, published as installed ([§11](#11-code-in-this-repository)). Which pieces the
+> independent reviewers have signed is in [§7](#7-honest-status). Packages will follow.
 
 ## Contents
 
@@ -21,6 +22,7 @@
 8. [What no theme can fix](#8-what-no-theme-can-fix)
 9. [Roadmap to the package](#9-roadmap-to-the-package)
 10. [Names, credits, licence](#10-names-credits-licence)
+11. [Code in this repository](#11-code-in-this-repository)
 
 ## 1. The problem: the seams
 
@@ -294,6 +296,33 @@ prototype, after the macOS feature it recreates), and we copy none of their icon
 cursor themes, the *Blur my Shell* extension and Fedora. Thank you.
 
 **Licence.** The text of this report is licensed under [CC BY 4.0](LICENSES/CC-BY-4.0.txt); the screenshots in `docs/img/` under [CC BY-SA 4.0](LICENSES/CC-BY-SA-4.0.txt), because they show icons and cursors from GPL/CC-BY-SA themes. Code published here later will be GPL-3.0-or-later (patches to Nautilus GPL-3.0-or-later, to its extension library LGPL-2.1-or-later, GNOME Shell extensions GPL-2.0-or-later), declared per file with SPDX headers. Third-party components keep their own licences. See [LICENSE.md](LICENSE.md).
+
+## 11. Code in this repository
+
+Since 5 November 2026 this repository also holds the source code of the pieces installed on the development
+workstation, exactly as installed (only comments and descriptions were edited for publication). Every folder has a
+short README — in Italian, with a one-line English summary — that says what the piece does and how to install and
+remove it.
+
+| Folder | What it is |
+|---|---|
+| [`extensions/vetro`](extensions/vetro/) | `vetro@codlab.de` — CodLab Vetro, the liquid glass for the top bar, dock, panel menus, banners and OSDs |
+| [`extensions/vassoio`](extensions/vassoio/) | `vassoio@codlab.de` — the status icons of the top bar in order, symbolic and without duplicates |
+| [`extensions/launchpad`](extensions/launchpad/) | `launchpad@codlab.de` — Launchpad CodLab: Super opens the full-screen app grid (prototype) |
+| [`extensions/rimbalzo`](extensions/rimbalzo/) | `rimbalzo@codlab.de` — the icon of a starting app bounces in the dock (prototype) |
+| [`extensions/dock-dal-bordo`](extensions/dock-dal-bordo/) | `dock-dal-bordo@codlab.de` — on secondary monitors the dock appears from the bottom edge |
+| [`extensions/rifiniture`](extensions/rifiniture/) | `rifiniture@codlab.de` — readable filled active states, stylesheet only |
+| [`extensions/quiete-aree`](extensions/quiete-aree/) | `quiete-aree@codlab.de` — no idle redraws while the workspace pop-up is shown |
+| [`extensions/ricerca-azioni`](extensions/ricerca-azioni/) | `ricerca-azioni@codlab.de` — quick actions, conversions, emoji and recent files in the overview search |
+| [`extensions/centro-notifiche`](extensions/centro-notifiche/) | `centro-notifiche@codlab.de` — a D-Bus interface to list and dismiss notifications |
+| [`extensions/svuota-notifiche`](extensions/svuota-notifiche/) | `svuota-notifiche@codlab` — a "clear all" button on every notification |
+| [`nautilus/vetro`](nautilus/vetro/) | `codlab-vetro.py` — the glass inside Files (nautilus-python) |
+| [`nautilus/codlab`](nautilus/codlab/) | Nautilus 51.1-2.4 — the patch series for Files (sidebar blocks, details pane, search "only here", group by, group settings) and its spec |
+| [`nautilus/integrazione`](nautilus/integrazione/) | `nautilus-codlab-integrazione`, `codlab-repo` — automatic rebuild on top of every Fedora Nautilus, local repository, RAW thumbnails, photo columns |
+
+All pieces target GNOME Shell 51 and Files (Nautilus) 51 on Fedora 45. No binary packages are published here: Files
+is rebuilt from Fedora's source package with the patch series. The review status of each piece, as of 1 November, is
+in [§7](#7-honest-status). Licences: see [LICENSE.md](LICENSE.md).
 
 ---
 

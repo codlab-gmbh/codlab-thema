@@ -4,10 +4,12 @@
 
 <p align="center"><a href="README.md">English</a> · Deutsch · <a href="README.it.md">Italiano</a></p>
 
-> **Stand: 1. November 2026.** Ein funktionierender Prototyp auf einer Entwicklungs-Workstation (Fedora 45,
+> **Stand: 5. November 2026.** Ein funktionierender Prototyp auf einer Entwicklungs-Workstation (Fedora 45,
 > GNOME Shell 51, GTK 4.24, libadwaita 1.10), **noch kein installierbares Paket**. Dieses Repository ist ein
-> öffentlicher Bericht: was wir gemessen haben, wofür wir uns entschieden haben, was fertig ist und was nicht. Code und
-> Pakete erscheinen hier Stück für Stück, sobald jedes Stück eine unabhängige Prüfung bestanden hat.
+> öffentlicher Bericht — was wir gemessen haben, wofür wir uns entschieden haben, was fertig ist und was nicht — und
+> seit dem 5. November auch der **Quellcode der Teile, die auf dieser Workstation installiert sind**, so wie sie
+> installiert sind ([§11](#11-code-in-diesem-repository)). Welche Teile die unabhängigen Prüfer unterschrieben haben,
+> steht in [§7](#7-ehrlicher-stand). Pakete folgen.
 
 ## Inhalt
 
@@ -21,6 +23,7 @@
 8. [Was kein Theme lösen kann](#8-was-kein-theme-lösen-kann)
 9. [Der Weg zum Paket](#9-der-weg-zum-paket)
 10. [Namen, Dank, Lizenz](#10-namen-dank-lizenz)
+11. [Code in diesem Repository](#11-code-in-diesem-repository)
 
 ## 1. Das Problem: die Brüche
 
@@ -303,6 +306,33 @@ Schriften. „Flüssiges Glas" beschreibt den Effekt; unserer heißt CodLab Vetr
 Symbol- und -Zeiger-Themes, der Erweiterung *Blur my Shell* und von Fedora. Danke.
 
 **Lizenz.** Der Text dieses Berichts steht unter [CC BY 4.0](LICENSES/CC-BY-4.0.txt), die Bildschirmfotos in `docs/img/` unter [CC BY-SA 4.0](LICENSES/CC-BY-SA-4.0.txt), weil sie Symbole und Mauszeiger aus GPL- bzw. CC-BY-SA-Themes zeigen. Später hier veröffentlichter Code steht unter GPL-3.0-or-later (Patches für Nautilus GPL-3.0-or-later, für dessen Erweiterungsbibliothek LGPL-2.1-or-later, GNOME-Shell-Erweiterungen GPL-2.0-or-later), pro Datei mit SPDX-Kopfzeilen. Komponenten Dritter behalten ihre eigenen Lizenzen. Siehe [LICENSE.md](LICENSE.md).
+
+## 11. Code in diesem Repository
+
+Seit dem 5. November 2026 enthält dieses Repository auch den Quellcode der Teile, die auf der Entwicklungs-Workstation
+installiert sind, genau so wie installiert (für die Veröffentlichung wurden nur Kommentare und Beschreibungen
+bearbeitet). Jeder Ordner hat ein kurzes README — auf Italienisch, mit einer Zusammenfassung in einer Zeile auf
+Englisch —, das sagt, was das Teil tut und wie man es installiert und entfernt.
+
+| Ordner | Was es ist |
+|---|---|
+| [`extensions/vetro`](extensions/vetro/) | `vetro@codlab.de` — CodLab Vetro, das flüssige Glas für obere Leiste, Dock, Panel-Menüs, Banner und OSDs |
+| [`extensions/vassoio`](extensions/vassoio/) | `vassoio@codlab.de` — die Statussymbole der oberen Leiste geordnet, symbolisch und ohne Doppelte |
+| [`extensions/launchpad`](extensions/launchpad/) | `launchpad@codlab.de` — Launchpad CodLab: Super öffnet das App-Raster im Vollbild (Prototyp) |
+| [`extensions/rimbalzo`](extensions/rimbalzo/) | `rimbalzo@codlab.de` — das Symbol einer startenden App hüpft im Dock (Prototyp) |
+| [`extensions/dock-dal-bordo`](extensions/dock-dal-bordo/) | `dock-dal-bordo@codlab.de` — auf weiteren Monitoren erscheint das Dock vom unteren Rand |
+| [`extensions/rifiniture`](extensions/rifiniture/) | `rifiniture@codlab.de` — lesbare gefüllte Aktivzustände, nur ein Stylesheet |
+| [`extensions/quiete-aree`](extensions/quiete-aree/) | `quiete-aree@codlab.de` — keine leeren Neuzeichnungen, solange das Arbeitsflächen-Pop-up sichtbar ist |
+| [`extensions/ricerca-azioni`](extensions/ricerca-azioni/) | `ricerca-azioni@codlab.de` — Schnellaktionen, Umrechnungen, Emoji und zuletzt verwendete Dateien in der Suche der Übersicht |
+| [`extensions/centro-notifiche`](extensions/centro-notifiche/) | `centro-notifiche@codlab.de` — eine D-Bus-Schnittstelle, um Benachrichtigungen aufzulisten und zu schließen |
+| [`extensions/svuota-notifiche`](extensions/svuota-notifiche/) | `svuota-notifiche@codlab` — eine Schaltfläche „alle leeren“ an jeder Benachrichtigung |
+| [`nautilus/vetro`](nautilus/vetro/) | `codlab-vetro.py` — das Glas in Dateien (nautilus-python) |
+| [`nautilus/codlab`](nautilus/codlab/) | Nautilus 51.1-2.4 — die Patch-Serie für Dateien (Seitenleisten-Blöcke, Detailbereich, Suche „nur hier“, Gruppieren nach, Gruppen-Einstellungen) und ihre Spec |
+| [`nautilus/integrazione`](nautilus/integrazione/) | `nautilus-codlab-integrazione`, `codlab-repo` — automatischer Neubau auf jedem Nautilus von Fedora, lokales Repository, RAW-Vorschaubilder, Foto-Spalten |
+
+Alle Teile sind für GNOME Shell 51 und Dateien (Nautilus) 51 auf Fedora 45. Binärpakete werden hier nicht
+veröffentlicht: Dateien wird aus dem Quellpaket von Fedora mit der Patch-Serie neu gebaut. Den Prüfstand jedes Teils,
+Stand 1. November, nennt [§7](#7-ehrlicher-stand). Lizenzen: siehe [LICENSE.md](LICENSE.md).
 
 ---
 

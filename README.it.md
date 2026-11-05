@@ -4,10 +4,11 @@
 
 <p align="center"><a href="README.md">English</a> · <a href="README.de.md">Deutsch</a> · Italiano</p>
 
-> **Stato al 1° novembre 2026.** Un prototipo funzionante su una postazione di sviluppo (Fedora 45, GNOME Shell 51,
-> GTK 4.24, libadwaita 1.10), **non ancora un pacchetto installabile**. Questo repository è un resoconto pubblico: cosa
-> abbiamo misurato, cosa abbiamo scelto, cosa è fatto e cosa no. Codice e pacchetti arriveranno qui un pezzo alla
-> volta, quando ogni pezzo avrà superato una revisione indipendente.
+> **Stato al 5 novembre 2026.** Un prototipo funzionante su una postazione di sviluppo (Fedora 45, GNOME Shell 51,
+> GTK 4.24, libadwaita 1.10), **non ancora un pacchetto installabile**. Questo repository è un resoconto pubblico —
+> cosa abbiamo misurato, cosa abbiamo scelto, cosa è fatto e cosa no — e, dal 5 novembre, anche il **codice sorgente
+> dei pezzi installati su quella postazione**, pubblicato così com'è installato ([§11](#11-il-codice-in-questo-repository)).
+> Quali pezzi hanno le firme dei revisori indipendenti lo dice il [§7](#7-stato-onesto). I pacchetti verranno dopo.
 
 ## Indice
 
@@ -21,6 +22,7 @@
 8. [Cosa nessun tema può risolvere](#8-cosa-nessun-tema-può-risolvere)
 9. [La strada verso il pacchetto](#9-la-strada-verso-il-pacchetto)
 10. [Nomi, ringraziamenti, licenza](#10-nomi-ringraziamenti-licenza)
+11. [Il codice in questo repository](#11-il-codice-in-questo-repository)
 
 ## 1. Il problema: gli stacchi
 
@@ -295,6 +297,33 @@ prototipo, dalla funzione di macOS che ricrea) e non copiamo le loro icone, i lo
 cursori Colloid, dell'estensione *Blur my Shell* e di Fedora. Grazie.
 
 **Licenza.** Il testo di questo resoconto è sotto [CC BY 4.0](LICENSES/CC-BY-4.0.txt), le schermate in `docs/img/` sotto [CC BY-SA 4.0](LICENSES/CC-BY-SA-4.0.txt), perché mostrano icone e cursori di temi GPL o CC-BY-SA. Il codice che pubblicheremo qui sarà GPL-3.0-or-later (patch di Nautilus GPL-3.0-or-later, della sua libreria delle estensioni LGPL-2.1-or-later, estensioni di GNOME Shell GPL-2.0-or-later), dichiarato file per file con intestazioni SPDX. I componenti di terzi mantengono le loro licenze. Vedi [LICENSE.md](LICENSE.md).
+
+## 11. Il codice in questo repository
+
+Dal 5 novembre 2026 questo repository contiene anche il codice sorgente dei pezzi installati sulla postazione di
+sviluppo, così com'è installato (per la pubblicazione sono stati toccati solo commenti e descrizioni). Ogni cartella
+ha un README breve — in italiano, con una riga di riassunto in inglese — che dice che cosa fa il pezzo e come si
+installa e si toglie.
+
+| Cartella | Che cosa è |
+|---|---|
+| [`extensions/vetro`](extensions/vetro/) | `vetro@codlab.de` — Vetro CodLab, il vetro liquido per barra, dock, menu del pannello, banner e OSD |
+| [`extensions/vassoio`](extensions/vassoio/) | `vassoio@codlab.de` — le icone di stato della barra in ordine, simboliche e senza doppioni |
+| [`extensions/launchpad`](extensions/launchpad/) | `launchpad@codlab.de` — Launchpad CodLab: Super apre la griglia delle app a tutto schermo (prototipo) |
+| [`extensions/rimbalzo`](extensions/rimbalzo/) | `rimbalzo@codlab.de` — l'icona dell'app che si avvia rimbalza nel dock (prototipo) |
+| [`extensions/dock-dal-bordo`](extensions/dock-dal-bordo/) | `dock-dal-bordo@codlab.de` — sui monitor secondari il dock compare dal bordo basso |
+| [`extensions/rifiniture`](extensions/rifiniture/) | `rifiniture@codlab.de` — stati attivi pieni leggibili, solo foglio di stile |
+| [`extensions/quiete-aree`](extensions/quiete-aree/) | `quiete-aree@codlab.de` — niente ridisegni a vuoto mentre il popup delle aree è a schermo |
+| [`extensions/ricerca-azioni`](extensions/ricerca-azioni/) | `ricerca-azioni@codlab.de` — azioni rapide, conversioni, emoji e file recenti nella ricerca della panoramica |
+| [`extensions/centro-notifiche`](extensions/centro-notifiche/) | `centro-notifiche@codlab.de` — un'interfaccia D-Bus per elencare e chiudere le notifiche |
+| [`extensions/svuota-notifiche`](extensions/svuota-notifiche/) | `svuota-notifiche@codlab` — il pulsante «Svuota tutto» su ogni notifica |
+| [`nautilus/vetro`](nautilus/vetro/) | `codlab-vetro.py` — il vetro dentro File (nautilus-python) |
+| [`nautilus/codlab`](nautilus/codlab/) | Nautilus 51.1-2.4 — la serie di patch di File (blocchi della barra laterale, riquadro dettagli, ricerca «solo qui», raggruppa per, configura i gruppi) e il suo spec |
+| [`nautilus/integrazione`](nautilus/integrazione/) | `nautilus-codlab-integrazione`, `codlab-repo` — ricostruzione automatica sopra ogni Nautilus di Fedora, repo locale, anteprime RAW, colonne foto |
+
+Tutti i pezzi sono per GNOME Shell 51 e File (Nautilus) 51 su Fedora 45. Qui non si pubblicano pacchetti binari:
+File si ricostruisce dal pacchetto sorgente di Fedora con la serie di patch. Lo stato delle revisioni di ogni pezzo,
+al 1° novembre, è nel [§7](#7-stato-onesto). Licenze: vedi [LICENSE.md](LICENSE.md).
 
 ---
 
