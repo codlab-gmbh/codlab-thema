@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
-// Rimbalzo nel dock — prototipo (31.10.2026). Licenza GPL-2.0-or-later.
+// Rimbalzo nel dock — prototipo (31.10.2026). Licenza GPL-3.0-or-later.
 // Shell.AppSystem «app-state-changed»: un'app che passa a STARTING fa rimbalzare la sua icona nei dock di Dash to Dock
 // (contenitori «dashtodockContainer») e nella dash della panoramica; il salto in corso finisce quando l'app è pronta.
 //

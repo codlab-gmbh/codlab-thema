@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
-// Launchpad CodLab — prototipo (31.10.2026). Licenza GPL-2.0-or-later.
+// Launchpad CodLab — prototipo (31.10.2026). Licenza GPL-3.0-or-later.
 //
 // Cosa cambia, e solo finché l'estensione è attiva:
 //  1. Super da solo (overlay-key): griglia delle app a tutto schermo; se la panoramica è già aperta, la chiude.
