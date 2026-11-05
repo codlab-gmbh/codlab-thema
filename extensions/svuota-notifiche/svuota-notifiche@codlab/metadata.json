@@ -1,0 +1,7 @@
+{
+  "uuid": "svuota-notifiche@codlab",
+  "name": "Svuota tutte le notifiche",
+  "description": "Svuota tutto accanto alla X di ogni banner e notifica; chiude il centro GNOME e archivia la coda degli avvisi.",
+  "shell-version": ["51"],
+  "version": 1
+}
