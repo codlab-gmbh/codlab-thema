@@ -1,0 +1,20 @@
+[Unit]
+Description=Controlla se un aggiornamento ha tolto la barra da Nautilus
+
+[Timer]
+# Il grosso del lavoro lo fa questa riga: aggiornamento-sicuro.sh applica gli
+# aggiornamenti in modalita' offline e RIAVVIA (finestra 07:30-11:30). Solo con
+# un controllo all'avvio la barra torna entro minuti invece di aspettare la
+# mezzanotte successiva.
+OnBootSec=5min
+OnCalendar=daily
+RandomizedDelaySec=30m
+# Niente Persistent=true, e non e' una svista: con lo stamp di un giro
+# precedente, un "systemctl daemon-reload" caduto dopo i 5 minuti ma prima del
+# ritardo casuale fa scartare a systemd il controllo all'avvio. E' successo il
+# 12/09/2026 (riavvio 17:48, reload 17:53:41): la ricostruzione e' partita solo
+# a mezzanotte. I giri persi a macchina spenta li recupera gia' OnBootSec.
+# Prova: una simulazione del reload dopo i 5 minuti (deve uscire 0).
+
+[Install]
+WantedBy=timers.target

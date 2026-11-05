@@ -1,0 +1,1104 @@
+#!/usr/bin/python3 -B
+# codlab-nautilus-ricostruisci — il Nautilus CodLab si ricostruisce A MONTE, prima che Fedora lo tocchi.
+#
+# Perche' esiste (02.11.2026: «non si deve sovrascrivere il nostro»). Fino al 01.11 il
+# nostro Nautilus aveva release "<fedora>.N.codlab": vince su Fedora solo a PARITA' di versione. Appena
+# Fedora sale (51.0.1 -> 51.1) il suo pacchetto vince e sostituisce il nostro, da aggiornamento-sicuro
+# come da GNOME Software; nautilus-barra-aggiorna ricostruiva DOPO, a caldo. Ora:
+#   - i repo binari di Fedora non offrono piu' nautilus* (esclusione mirata in
+#     /etc/dnf/repos.override.d/80-codlab-esclusioni.repo, pacchetto codlab-repo): nessun canale libdnf5
+#     (dnf5, dnf5daemon/GNOME Software, PackageKit) puo' scegliere il loro al posto del nostro;
+#   - questo programma guarda il nautilus piu' nuovo dei repo SORGENTE di Fedora (nessuna esclusione la'),
+#     e se e' piu' nuovo della base del nostro ricostruisce le patch CodLab sopra, prova il risultato e lo
+#     PUBBLICA nel repo locale «codlab» (/var/lib/codlab-rpm/repo). Non installa niente: lo porta il
+#     prossimo aggiornamento (offline, riavvio deciso dall'utente), come ogni altro pacchetto;
+#   - se una patch non si applica, la build fallisce o la prova e' rossa: resta il nostro di prima, nel
+#     repo e sul disco, e l'avviso arriva all'utente. Nessuna rottura, nessun pacchetto Fedora al posto.
+#
+# Sottocomandi (tutti con --aiuto):
+#   controlla                 cosa c'e' (installato, nel repo codlab, Fedora) e se serve ricostruire
+#   prepara-spec              lo spec CodLab da quello di Fedora (patch, release, %files, changelog)
+#   costruisci                SRPM Fedora + patch -> RPM in una cartella (rpmbuild come utente)
+#   prova                     prova a secco degli RPM costruiti, senza installarli
+#   pubblica                  RPM provati -> repo locale (createrepo_c), provenienza, potatura
+#   automatico                quello che lancia il timer: controlla -> scarica -> costruisci -> prova -> pubblica
+#
+# Le prove si fanno in una radice finta, senza sudo.
+
+import argparse
+import datetime
+import fcntl
+import glob
+import hashlib
+import json
+import os
+import pwd
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+
+# --- configurazione (tutte sovrascrivibili da riga di comando o ambiente, per le prove) -------------
+SERIE = os.environ.get("CODLAB_SERIE", "/usr/local/share/nautilus-barra/serie.json")
+REPO = os.environ.get("CODLAB_REPO", "/var/lib/codlab-rpm/repo")
+STATO = os.environ.get("CODLAB_STATO", "/var/lib/codlab-rpm/stato-nautilus.json")
+LAVORO = os.environ.get("CODLAB_LAVORO", "/var/cache/codlab-rpm/nautilus")
+UTENTE = os.environ.get("CODLAB_UTENTE") or next((u.pw_name for u in pwd.getpwall() if u.pw_uid == 1000), None)
+AVVISA = os.environ.get("CODLAB_AVVISA", "/usr/local/bin/avvisa-server")
+DNF = os.environ.get("CODLAB_DNF", "dnf5")
+CREATEREPO = os.environ.get("CODLAB_CREATEREPO", "createrepo_c")
+REPO_SORGENTE = ("fedora-source", "updates-source")
+# i sottopacchetti binari del sorgente nautilus: sono quelli esclusi dai repo di Fedora
+SOTTOPACCHETTI = ("nautilus", "nautilus-extensions", "nautilus-devel")
+TIENI = 3          # build per nome tenute nel repo (mai potata quella installata)
+
+GIORNI = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+MESI = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+
+class Guasto(Exception):
+    """Un fallimento con il motivo da mettere nell'avviso."""
+
+
+class DipendenzeMancanti(Guasto):
+    """Le BuildRequires del nautilus nuovo non sono installate. La ricostruzione automatica NON le
+    installa (S4, 02.11: una transazione dnf sul sistema
+    vivo invaliderebbe la coda offline di aggiornamento-sicuro o di GNOME Software, trappola del
+    18.09, senza che un controllo fatto prima possa fermare chi la prepara dopo): si ferma, e l'avviso
+    dice cosa installare e come."""
+
+    def __init__(self, mancanti):
+        self.mancanti = list(mancanti)
+        super().__init__("dipendenze di build mancanti: %s (la ricostruzione automatica non installa "
+                         "niente)" % ", ".join(self.mancanti))
+
+    def comando(self):
+        import shlex
+        return "sudo dnf5 install " + " ".join(shlex.quote(m) for m in self.mancanti)
+
+
+def esegui(cmd, log=None, utente=None, ambiente=None, cwd=None, timeout=None):
+    """Lancia un comando; con log scrive tutto su file. Restituisce il codice d'uscita."""
+    if utente and os.geteuid() == 0 and pwd.getpwnam(utente).pw_uid != 0:
+        cmd = ["runuser", "-u", utente, "--"] + list(cmd)
+    env = dict(os.environ)
+    env.update(ambiente or {})
+    if log:
+        with open(log, "ab") as f:
+            f.write(("\n$ " + " ".join(cmd) + "\n").encode())
+            f.flush()
+            return subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT, env=env, cwd=cwd,
+                                  timeout=timeout).returncode
+    return subprocess.run(cmd, env=env, cwd=cwd, timeout=timeout).returncode
+
+
+def uscita(cmd, ambiente=None, togli=()):
+    env = dict(os.environ)
+    env.update(ambiente or {})
+    for k in togli:
+        if k not in (ambiente or {}):
+            env.pop(k, None)
+    return subprocess.run(cmd, capture_output=True, text=True, env=env)
+
+
+# il binario provato non deve vedere la sessione grafica di nessuno: niente display, niente bus di
+# sessione, casa finta (altrimenti carica le estensioni python dell'utente, misurato il 02.11)
+SESSIONE = ("DISPLAY", "WAYLAND_DISPLAY", "DBUS_SESSION_BUS_ADDRESS", "XDG_RUNTIME_DIR", "XDG_SESSION_TYPE",
+            "XDG_DATA_HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME")
+
+
+def motivo(log):
+    """La riga che spiega un fallimento: il primo «Problema» di dnf, poi la prima riga «error:», poi il
+    primo errore qualsiasi, poi l'ultima. Le righe della traccia della shell («+ …») e i dump delle
+    variabili (…FLAGS=…, che contengono «-Werror») non spiegano niente: si saltano (misurato il 02.11)."""
+    try:
+        righe = open(log, errors="replace").read().splitlines()
+    except OSError:
+        return "registro mancante"
+    utili = [r for r in righe if not r.lstrip().startswith("+") and "FLAGS=" not in r]
+    for schema in (r"^\s*problem", r"^\s*(error|errore)\b", r"FAILED|\bfail|error|errore|impossibile|malformed|reversed|reject"):
+        for r in utili:
+            if re.search(schema, r, re.I):
+                return r.strip()[:300]
+    return (utili[-1].strip() if utili else "registro vuoto")[:300]
+
+
+# i messaggi di patch che dicono «questa patch non si applica». Rilievo A (02.11): una patch che
+# tocca un file che il sorgente non ha piu' fa dire a patch -s -f (quello di %autosetup) solo «No file to
+# patch. Skipping patch.» e «1 out of 1 hunk ignored»: senza queste due righe l'avviso non nominava la patch
+PATCH_NON_SI_APPLICA = (r"\d+ out of \d+ hunks? (FAILED|ignored)|Hunk #\d+ FAILED|malformed patch|Reversed \(or "
+                        r"previously applied\) patch|can't find file to patch|No file to patch")
+
+
+def patch_fallita(testo):
+    """Quale patch non si applica, e il messaggio di patch. rpmbuild la lancia con -s: allora patch dice
+    solo «N out of M hunk(s) FAILED -- saving rejects to file …» (o, per un file sparito, «No file to
+    patch» e «N out of M hunk(s) ignored»); la patch e' l'ultima nominata prima (riga «rpmuncompress
+    …/SOURCES/<nome>.patch» della traccia di %prep). None se non e' una patch."""
+    ultima = None
+    for r in testo.splitlines():
+        m = re.search(r"SOURCES/([^/\s]+\.patch)\b", r)
+        if m:
+            ultima = m.group(1)
+        if re.search(PATCH_NON_SI_APPLICA, r):
+            return ultima or "?", r.strip()
+    return None
+
+
+def sha256(percorso):
+    h = hashlib.sha256()
+    with open(percorso, "rb") as f:
+        for blocco in iter(lambda: f.read(1 << 20), b""):
+            h.update(blocco)
+    return h.hexdigest()
+
+
+def vercmp(a, b):
+    """Confronto RPM di due "versione-release" (epoch 0): -1, 0, 1. rpm.labelCompare, come dnf."""
+    import rpm
+    va, ra = a.rsplit("-", 1)
+    vb, rb = b.rsplit("-", 1)
+    return rpm.labelCompare(("0", va, ra), ("0", vb, rb))
+
+
+def base_fedora(release):
+    """"2.1.codlab.fc45" -> "2"; "1.8.1.codlab.fc45" -> "1"; "2.fc45" -> "2"."""
+    r = re.sub(r"\.[0-9.]+\.codlab", "", release)
+    return re.sub(r"\.fc\d+$", "", r)
+
+
+def leggi_serie(percorso=None):
+    """serie.json: le patch nell'ordine, la revisione CodLab, i file in piu' da dichiarare in %files."""
+    percorso = percorso or SERIE
+    with open(percorso) as f:
+        s = json.load(f)
+    for chiave in ("serie", "codlab_rel", "patch", "file_in_piu"):
+        if chiave not in s:
+            raise Guasto(f"{percorso}: manca la chiave {chiave}")
+    if not re.fullmatch(r"[0-9]+", str(s["codlab_rel"])):
+        raise Guasto(f"{percorso}: codlab_rel deve essere un intero, non {s['codlab_rel']!r}")
+    s["cartella"] = os.path.dirname(os.path.abspath(percorso))
+    return s
+
+
+# --- prepara-spec ---------------------------------------------------------------------------------
+
+def prepara_spec(testo, rel_base, codlab_rel, patch, file_in_piu, versione_fedora, data=None):
+    """Dallo spec di Fedora allo spec CodLab. Ogni ancora mancante e' un Guasto: meglio fermarsi che
+    costruire un pacchetto diverso da quello provato."""
+    righe = testo.split("\n")
+    # 1) le patch CodLab dopo l'ultima Patch di Fedora (o dopo Source0 se non ce ne sono)
+    idx_patch = [i for i, r in enumerate(righe) if re.match(r"^Patch\d*\s*:", r)]
+    idx_source = [i for i, r in enumerate(righe) if re.match(r"^Source\d*\s*:", r)]
+    if not (idx_patch or idx_source):
+        raise Guasto("spec di Fedora senza righe Patch/Source: non so dove mettere le patch")
+    dopo = max(idx_patch or idx_source)
+    blocco = ["# CodLab: patch della serie «%s» (codlab-nautilus-ricostruisci)" % codlab_rel]
+    blocco += ["Patch:          %s" % os.path.basename(p) for p in patch]
+    righe[dopo + 1:dopo + 1] = blocco
+    # 2) la release: "<base Fedora>.<revisione CodLab>.codlab%{?dist}"
+    rel = [i for i, r in enumerate(righe) if re.match(r"^Release\s*:", r)]
+    if len(rel) != 1:
+        raise Guasto("spec di Fedora con %d righe Release (attesa 1)" % len(rel))
+    righe[rel[0]] = "Release:        %s.%s.codlab%%{?dist}" % (rel_base, codlab_rel)
+    # 3) i file che le patch aggiungono, dichiarati accanto a un'ancora di Fedora
+    for voce in file_in_piu:
+        ancora, nuovo = voce["dopo"], voce["file"]
+        pos = [i for i, r in enumerate(righe) if r.strip() == ancora]
+        if len(pos) != 1:
+            raise Guasto("ancora %%files %r trovata %d volte nello spec di Fedora" % (ancora, len(pos)))
+        if nuovo not in (r.strip() for r in righe):
+            righe.insert(pos[0] + 1, nuovo)
+    # 4) il changelog: la voce CodLab in testa (date in inglese: rpm non accetta l'italiano)
+    ch = [i for i, r in enumerate(righe) if r.strip() == "%changelog"]
+    if len(ch) != 1:
+        raise Guasto("spec di Fedora con %d righe %%changelog (attesa 1)" % len(ch))
+    d = data or datetime.date.today()
+    intestazione = "* %s %s %02d %d CodLab - %s-%s.%s.codlab" % (
+        GIORNI[d.weekday()], MESI[d.month - 1], d.day, d.year,
+        versione_fedora.split("-")[0], rel_base, codlab_rel)
+    voce = [intestazione,
+            "- ricostruito da nautilus %s di Fedora con le patch CodLab:" % versione_fedora,
+            "  " + ", ".join(os.path.basename(p) for p in patch), ""]
+    righe[ch[0] + 1:ch[0] + 1] = voce
+    testo = "\n".join(righe)
+    # %autochangelog senza rpmautospec non si espande: nell'SRPM di Fedora e' gia' espanso, ma se no...
+    testo = testo.replace("%autochangelog", "")
+    return testo
+
+
+def cmd_prepara_spec(a):
+    serie = leggi_serie(a.serie)
+    testo = open(a.spec).read()
+    patch = [os.path.join(serie["cartella"], p) for p in serie["patch"]]
+    nuovo = prepara_spec(testo, a.rel_base, serie["codlab_rel"], patch, serie["file_in_piu"],
+                         a.versione_fedora)
+    with open(a.uscita, "w") as f:
+        f.write(nuovo)
+    print(a.uscita)
+    return 0
+
+
+# --- costruisci -----------------------------------------------------------------------------------
+
+def mancanti_buildrequires(spec):
+    """Le BuildRequires che il sistema non soddisfa (rpmspec + rpm -q --whatprovides)."""
+    r = uscita(["rpmspec", "-q", "--buildrequires", spec])
+    if r.returncode != 0:
+        raise Guasto("rpmspec non legge lo spec: " + (r.stderr.strip().splitlines() or ["?"])[-1])
+    mancanti = []
+    for req in r.stdout.split("\n"):
+        req = req.strip()
+        if not req:
+            continue
+        nome = req.split()[0]
+        if uscita(["rpm", "-q", "--whatprovides", nome]).returncode != 0:
+            mancanti.append(req)
+    return mancanti
+
+
+def transazione_offline_in_coda():
+    r = uscita([DNF, "offline", "status"], ambiente={"LC_ALL": "C"})
+    testo = r.stdout + r.stderr
+    return "No offline transaction is stored" not in testo
+
+
+def costruisci(srpm, serie, uscita_dir, lavoro, utente=None, cpu=8, builddep=False):
+    """SRPM di Fedora + serie CodLab -> RPM in uscita_dir. Restituisce l'elenco degli RPM binari."""
+    srpm, uscita_dir, lavoro = (os.path.abspath(x) for x in (srpm, uscita_dir, lavoro))
+    os.makedirs(lavoro, exist_ok=True)
+    log = os.path.join(lavoro, "build.log")
+    estratto = os.path.join(lavoro, "estratto")
+    albero = os.path.join(lavoro, "rpmbuild")
+    shutil.rmtree(estratto, ignore_errors=True)
+    shutil.rmtree(albero, ignore_errors=True)
+    os.makedirs(estratto)
+    for d in ("SOURCES", "SPECS", "RPMS", "BUILD", "SRPMS"):
+        os.makedirs(os.path.join(albero, d))
+    if subprocess.run("rpm2cpio %s | cpio -idm --quiet" % shlex_quote(srpm), shell=True,
+                      cwd=estratto).returncode != 0:
+        raise Guasto("non riesco a estrarre l'SRPM " + srpm)
+    q = uscita(["rpm", "-qp", "--qf", "%{NAME} %{VERSION} %{RELEASE}", srpm])
+    nome, versione, release = q.stdout.split()
+    if nome != "nautilus":
+        raise Guasto("l'SRPM non e' nautilus ma %s" % nome)
+    rel_base = base_fedora(release)
+    spec_fedora = glob.glob(os.path.join(estratto, "*.spec"))
+    if len(spec_fedora) != 1:
+        raise Guasto("nell'SRPM ci sono %d spec" % len(spec_fedora))
+    patch = [os.path.join(serie["cartella"], p) for p in serie["patch"]]
+    for p in patch:
+        if not os.path.isfile(p) or os.path.getsize(p) == 0:
+            raise Guasto("patch mancante o vuota: " + os.path.basename(p))
+    testo = prepara_spec(open(spec_fedora[0]).read(), rel_base, serie["codlab_rel"], patch,
+                         serie["file_in_piu"], "%s-%s" % (versione, release))
+    spec = os.path.join(albero, "SPECS", "nautilus.spec")
+    for f in os.listdir(estratto):
+        if not f.endswith(".spec"):
+            shutil.copy2(os.path.join(estratto, f), os.path.join(albero, "SOURCES", f))
+    for p in patch:
+        shutil.copy2(p, os.path.join(albero, "SOURCES", os.path.basename(p)))
+    with open(spec, "w") as f:
+        f.write(testo)
+    mancanti = mancanti_buildrequires(spec)
+    if mancanti:
+        # builddep=True SOLO dal sottocomando costruisci --builddep, lanciato a mano: il giro automatico
+        # non installa mai (DipendenzeMancanti)
+        if not builddep:
+            raise DipendenzeMancanti(mancanti)
+        # una transazione dnf INVALIDA lo stage offline in attesa (trappola del 18.09): si rimanda
+        if transazione_offline_in_coda():
+            raise Guasto("RIMANDATO: servono dipendenze di build (%s) ma c'e' una transazione offline in "
+                         "coda; si riprova dopo il riavvio" % ", ".join(mancanti))
+        if esegui([DNF, "-y", "builddep", spec], log=os.path.join(lavoro, "builddep.log")) != 0:
+            raise Guasto("dnf builddep fallito: " + motivo(os.path.join(lavoro, "builddep.log")))
+    if os.geteuid() == 0 and utente:
+        u = pwd.getpwnam(utente)
+        for radice, dirs, files in os.walk(lavoro):
+            os.chown(radice, u.pw_uid, u.pw_gid)
+            for f in files:
+                os.chown(os.path.join(radice, f), u.pw_uid, u.pw_gid)
+    tmp = os.path.join(lavoro, "tmp")
+    os.makedirs(tmp, exist_ok=True)
+    if os.geteuid() == 0 and utente:
+        u = pwd.getpwnam(utente)
+        os.chown(tmp, u.pw_uid, u.pw_gid)
+    ambiente = {"TMPDIR": tmp, "CCACHE_DISABLE": "1", "LC_ALL": "C"}
+    rc = esegui(["rpmbuild", "-bb", "--define", "_topdir " + albero, "--define", "_tmppath " + tmp,
+                 "--define", "_smp_build_ncpus %d" % cpu, spec], log=log, utente=utente, ambiente=ambiente)
+    if rc != 0:
+        pf = patch_fallita(open(log, errors="replace").read())
+        if pf:
+            raise Guasto("la patch %s non si applica piu' su nautilus %s-%s (%s)" % (pf[0], versione, release,
+                                                                                    pf[1]))
+        raise Guasto("rpmbuild fallito su nautilus %s-%s: %s" % (versione, release, motivo(log)))
+    os.makedirs(uscita_dir, exist_ok=True)
+    prodotti = []
+    for f in glob.glob(os.path.join(albero, "RPMS", "*", "*.rpm")):
+        n = uscita(["rpm", "-qp", "--qf", "%{NAME}", f]).stdout
+        if n in SOTTOPACCHETTI:              # niente debuginfo/debugsource nel repo
+            dest = os.path.join(uscita_dir, os.path.basename(f))
+            shutil.copy2(f, dest)
+            prodotti.append(dest)
+    if not any("/nautilus-%s-" % versione in p for p in prodotti):
+        raise Guasto("build finita senza l'RPM di nautilus")
+    prov = {
+        "srpm": os.path.basename(srpm), "srpm_sha256": sha256(srpm),
+        "versione_fedora": "%s-%s" % (versione, release), "serie": serie["serie"],
+        "codlab_rel": serie["codlab_rel"],
+        "patch": {os.path.basename(p): sha256(p) for p in patch},
+        "spec_sha256": sha256(spec),
+        "rpm": {os.path.basename(p): sha256(p) for p in sorted(prodotti)},
+        "costruito": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
+    }
+    with open(os.path.join(uscita_dir, "PROVENIENZA.json"), "w") as f:
+        json.dump(prov, f, indent=1, ensure_ascii=False)
+    shutil.copy2(spec, os.path.join(uscita_dir, "nautilus.spec"))
+    return sorted(prodotti)
+
+
+def shlex_quote(s):
+    import shlex
+    return shlex.quote(s)
+
+
+def cmd_costruisci(a):
+    serie = leggi_serie(a.serie)
+    try:
+        prodotti = costruisci(a.srpm, serie, a.uscita, a.lavoro, utente=a.utente, cpu=a.cpu,
+                              builddep=a.builddep)
+    except Guasto as e:
+        print("GUASTO: %s" % e, file=sys.stderr)
+        return 1
+    print("\n".join(prodotti))
+    return 0
+
+
+# --- prova ----------------------------------------------------------------------------------------
+
+def prova(rpm_dir, versione_attesa=None, marcatori=None, risoluzione=True, lavoro=None, utente=None):
+    """Prova a secco degli RPM: si estraggono in una radice temporanea, il binario parte e dice la
+    versione, le patch ci sono (marcatori), gli schemi compilano, e (con risoluzione) dnf li accetta
+    sul sistema com'e' (--assumeno). Restituisce l'elenco degli esiti; un Guasto al primo rosso."""
+    esiti = []
+    rpm_dir = os.path.abspath(rpm_dir)
+    rpms = sorted(glob.glob(os.path.join(rpm_dir, "*.rpm")))
+    nomi = {uscita(["rpm", "-qp", "--qf", "%{NAME}", r]).stdout: r for r in rpms}
+    for n in ("nautilus", "nautilus-extensions"):
+        if n not in nomi:
+            raise Guasto("prova: manca l'RPM di " + n)
+    with tempfile.TemporaryDirectory(prefix="prova-nautilus-", dir=lavoro) as radice:
+        for n in ("nautilus", "nautilus-extensions"):
+            if subprocess.run("rpm2cpio %s | cpio -idm --quiet" % shlex_quote(nomi[n]), shell=True,
+                              cwd=radice).returncode != 0:
+                raise Guasto("prova: non riesco a estrarre " + os.path.basename(nomi[n]))
+        binario = os.path.join(radice, "usr/bin/nautilus")
+        casa = os.path.join(radice, "casa-finta")
+        os.makedirs(casa)
+        amb = {"LD_LIBRARY_PATH": os.path.join(radice, "usr/lib64"), "GSETTINGS_BACKEND": "memory",
+               "NO_AT_BRIDGE": "1", "HOME": casa, "XDG_SESSION_TYPE": "x11", "LC_ALL": "C"}
+        # nautilus 51 non dice nemmeno la versione senza un display (rc 1, «missing session type»,
+        # misurato il 02.11): un Xvfb e un bus PRIVATI, buttati alla fine, e mai quelli di una sessione
+        cmd = ["xvfb-run", "-a", "-s", "-nolisten tcp", "dbus-run-session", "--", binario, "--version"]
+        if os.geteuid() == 0 and utente:
+            u = pwd.getpwnam(utente)
+            for radice_, dirs, files in os.walk(radice):
+                os.chown(radice_, u.pw_uid, u.pw_gid)
+            cmd = ["runuser", "-u", utente, "--", "env"] + ["%s=%s" % kv for kv in amb.items()] + cmd
+        r = uscita(cmd, ambiente=amb, togli=SESSIONE)
+        versione_letta = next((l.strip() for l in r.stdout.splitlines() if l.startswith("GNOME nautilus ")), "")
+        if r.returncode != 0 or not versione_letta:
+            raise Guasto("prova: il binario non parte (--version rc %d: %s)" %
+                         (r.returncode, (r.stderr or r.stdout).strip()[-200:]))
+        if versione_attesa and versione_letta != "GNOME nautilus " + versione_attesa:
+            raise Guasto("prova: il binario dice %r, attesa %s" % (versione_letta, versione_attesa))
+        esiti.append("binario: %s (Xvfb e bus privati)" % versione_letta)
+        ldd = uscita(["ldd", binario], ambiente=amb, togli=SESSIONE).stdout
+        if "not found" in ldd:
+            raise Guasto("prova: librerie mancanti: " + ", ".join(
+                l.split()[0] for l in ldd.splitlines() if "not found" in l))
+        esiti.append("ldd: nessuna libreria mancante")
+        dati = open(binario, "rb").read()
+        for m in (marcatori or []):
+            if m.encode() not in dati:
+                raise Guasto("prova: nel binario manca il marcatore della patch %r" % m)
+        if marcatori:
+            esiti.append("marcatori: %d/%d presenti" % (len(marcatori), len(marcatori)))
+        schemi = os.path.join(radice, "usr/share/glib-2.0/schemas")
+        if not os.path.isfile(os.path.join(schemi, "org.gnome.nautilus.codlab.gschema.xml")):
+            raise Guasto("prova: manca lo schema org.gnome.nautilus.codlab")
+        # gli schemi del pacchetto devono compilare INSIEME a quelli del sistema
+        with tempfile.TemporaryDirectory(dir=lavoro) as d:
+            for f in glob.glob("/usr/share/glib-2.0/schemas/*.xml") + glob.glob(schemi + "/*.xml"):
+                shutil.copy2(f, d)
+            for f in glob.glob("/usr/share/glib-2.0/schemas/*.override"):
+                shutil.copy2(f, d)
+            r = uscita(["glib-compile-schemas", "--strict", "--dry-run", d])
+            if r.returncode != 0:
+                raise Guasto("prova: gli schemi non compilano: " + r.stderr.strip()[:200])
+        esiti.append("schemi: compilano con --strict insieme a quelli del sistema")
+    if risoluzione:
+        # disable_excludes: si prova che i NOSTRI pacchetti stanno sul sistema com'e', a prescindere
+        # da versionlock ed esclusioni (il lock del 02.11 sull'1.8.1 li filtrerebbe, misurato)
+        r = uscita([DNF, "-q", "install", "--assumeno", "--setopt=disable_excludes=*"] + rpms,
+                   ambiente={"LC_ALL": "C"})
+        testo = r.stdout + r.stderr
+        perche = risoluzione_non_valida(r.returncode, testo, [nevra_rpm(x) for x in rpms])
+        if perche:
+            raise Guasto("prova: %s: %s" % (perche, " | ".join(testo.strip().splitlines()[-4:])[:300]))
+        esiti.append("risoluzione: dnf install --assumeno risolve (%s)" %
+                     ("transazione pronta, fermata alla domanda" if r.returncode else "gia' installati"))
+    return esiti
+
+
+def nevra_rpm(percorso):
+    return uscita(["rpm", "-qp", "--qf", "%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}", percorso]).stdout.strip()
+
+
+def risoluzione_non_valida(rc, testo, nevra=()):
+    """None se `dnf5 -q install --assumeno` (LC_ALL=C) ha RISOLTO la transazione, altrimenti il motivo.
+    S1 (02.11): prima si cercavano solo quattro frasi di errore e si ignorava l'uscita,
+    cosi' «Failed to download metadata for repo updates» (rc 1) o «Failed to access RPM» passavano VERDI.
+    Si riconoscono invece i soli esiti validi, misurati col dnf5 vero in isola il 02.11:
+      - transazione risolta e fermata da --assumeno: rc 1 e «Operation aborted by the user.»;
+      - niente da fare: rc 0, «Nothing to do.» e ogni RPM «… is already installed.».
+    Tutto il resto (metadati non scaricati, RPM illeggibile, problemi, messaggi cambiati) e' ROSSO."""
+    if re.search(r"(^Problem|nothing provides|conflicts with|cannot install|Failed to resolve)", testo,
+                 re.I | re.M):
+        return "dnf non accetta gli RPM"
+    if rc == 1 and re.search(r"^Operation aborted by the user\.?$", testo, re.M):
+        return None
+    if (rc == 0 and re.search(r"^Nothing to do\.?$", testo, re.M) and nevra
+            and all('"%s" is already installed' % n in testo for n in nevra)):
+        return None
+    return "dnf non ha risolto la transazione (rc %d, esito non riconosciuto)" % rc
+
+
+def cmd_prova(a):
+    try:
+        marc = a.marcatore or leggi_serie(a.serie).get("marcatori", [])
+        esiti = prova(a.rpm_dir, a.versione_attesa, marc, risoluzione=not a.senza_risoluzione)
+    except Guasto as e:
+        print("ROSSO: %s" % e)
+        return 1
+    print("VERDE\n" + "\n".join("  " + e for e in esiti))
+    return 0
+
+
+# --- pubblica -------------------------------------------------------------------------------------
+
+def installato(nome):
+    r = uscita(["rpm", "-q", "--qf", "%{VERSION}-%{RELEASE}", nome])
+    return r.stdout.strip() if r.returncode == 0 else None
+
+
+# --- i metadati del repo: cio' che vedono dnf, la coda offline, GNOME Software ------------------------
+# S2 (02.11): con createrepo_c guasto gli RPM nuovi restavano in Packages/ coi metadati di
+# prima, e il giro dopo, che contava i FILE, diceva «gia' alla pari»: il nuovo restava invisibile a tutti.
+# Ora conta solo cio' che i metadati PUBBLICANO, la pubblicazione e' tutto o niente, e un repo i cui file
+# non combaciano coi metadati si ripara prima di decidere. S2t (02.11 sera): il ritorno indietro
+# rimetteva i file e non i metadati, se createrepo_c li aveva gia' scritti: ora rimette anche i metadati
+# salvati, e lo verifica al byte.
+
+NS_REPO = "{http://linux.duke.edu/metadata/repo}"
+NS_COMUNE = "{http://linux.duke.edu/metadata/common}"
+
+
+def _decomprimi(percorso):
+    dati = open(percorso, "rb").read()
+    if percorso.endswith(".zst"):
+        try:
+            from compression import zstd          # Python >= 3.14
+            return zstd.decompress(dati)
+        except ImportError:
+            r = subprocess.run(["zstd", "-dcq"], input=dati, capture_output=True)
+            if r.returncode != 0:
+                raise Guasto("non riesco a decomprimere " + os.path.basename(percorso))
+            return r.stdout
+    if percorso.endswith(".gz"):
+        import gzip
+        return gzip.decompress(dati)
+    if percorso.endswith(".xz"):
+        import lzma
+        return lzma.decompress(dati)
+    if percorso.endswith(".bz2"):
+        import bz2
+        return bz2.decompress(dati)
+    if percorso.endswith(".xml"):
+        return dati
+    raise Guasto("metadati in un formato che non conosco: " + os.path.basename(percorso))
+
+
+def _somma(percorso, tipo):
+    h = hashlib.new(tipo)
+    with open(percorso, "rb") as f:
+        for blocco in iter(lambda: f.read(1 << 20), b""):
+            h.update(blocco)
+    return h.hexdigest()
+
+
+def metadati(repo):
+    """I pacchetti che i metadati del repo PUBBLICANO: {"Packages/x.rpm": (nome, "versione-release",
+    (tipo, somma))}. Guasto se repomd.xml manca o non si legge, o se il primary non combacia con lui."""
+    import xml.etree.ElementTree as ET
+    repomd = os.path.join(repo, "repodata", "repomd.xml")
+    try:
+        radice = ET.parse(repomd).getroot()
+        primary = [d for d in radice.findall(NS_REPO + "data") if d.get("type") == "primary"]
+        if len(primary) != 1:
+            raise Guasto("repomd.xml con %d primary" % len(primary))
+        href = primary[0].find(NS_REPO + "location").get("href")
+        somma = primary[0].find(NS_REPO + "checksum")
+        file_primary = os.path.join(repo, href)
+        if (somma is None or not os.path.isfile(file_primary)
+                or _somma(file_primary, somma.get("type")) != somma.text.strip()):
+            raise Guasto("il primary %s non combacia con repomd.xml" % href)
+        pubblicati = {}
+        for pk in ET.fromstring(_decomprimi(file_primary)).findall(NS_COMUNE + "package"):
+            v = pk.find(NS_COMUNE + "version")
+            c = pk.find(NS_COMUNE + "checksum")
+            pubblicati[pk.find(NS_COMUNE + "location").get("href")] = (
+                pk.findtext(NS_COMUNE + "name"), "%s-%s" % (v.get("ver"), v.get("rel")),
+                (c.get("type"), c.text.strip()))
+        return pubblicati
+    except Guasto:
+        raise
+    except Exception as e:                   # file mancante, XML rotto, somma o compressione sconosciute
+        raise Guasto("metadati del repo illeggibili (%s): %s" % (repomd, e))
+
+
+def incoerenze(repo):
+    """[] se i metadati pubblicano ESATTAMENTE i file di Packages/ (stessa somma); altrimenti cosa non
+    combacia. Un repo senza pacchetti e senza metadati e' coerente: e' vuoto."""
+    su_disco = sorted("Packages/" + os.path.basename(f) for f in glob.glob(os.path.join(repo, "Packages", "*.rpm")))
+    if not su_disco and not os.path.exists(os.path.join(repo, "repodata")):
+        return []
+    try:
+        pub = metadati(repo)
+    except Guasto as e:
+        return [str(e)]
+    problemi = ["su disco ma non nei metadati: " + x for x in su_disco if x not in pub]
+    for loc, (nome, vr, (tipo, somma)) in sorted(pub.items()):
+        f = os.path.join(repo, loc)
+        if not os.path.isfile(f):
+            problemi.append("nei metadati ma non su disco: " + loc)
+        elif _somma(f, tipo) != somma:
+            problemi.append("somma diversa dai metadati: " + loc)
+    return problemi
+
+
+def da_potare(repo, tieni=TIENI):
+    """Per nome, le build oltre le ultime `tieni`; mai quella installata."""
+    import functools
+    per_nome = {}
+    for f in glob.glob(os.path.join(repo, "Packages", "*.rpm")):
+        q = uscita(["rpm", "-qp", "--qf", "%{NAME} %{VERSION}-%{RELEASE}", f]).stdout.split()
+        if len(q) == 2:
+            per_nome.setdefault(q[0], []).append((q[1], f))
+    potati = []
+    for nome, voci in per_nome.items():
+        voci.sort(key=functools.cmp_to_key(lambda x, y: vercmp(x[0], y[0])), reverse=True)
+        inst = installato(nome)
+        potati += [f for vr, f in voci[tieni:] if vr != inst]
+    return sorted(potati)
+
+
+def permessi_repo(repo):
+    for radice, dirs, files in os.walk(repo):
+        for d in dirs:
+            os.chmod(os.path.join(radice, d), 0o755)
+        for f in files:
+            os.chmod(os.path.join(radice, f), 0o644)
+
+
+def _istantanea(repo):
+    """Il «com'era» del repo: ogni file con la sua somma sha256 e ogni cartella, fuori dal solo registro
+    .createrepo.log (cresce a ogni giro). Un ritorno indietro deve ridarla AL BYTE: file E metadati."""
+    foto = {}
+    for radice, dirs, files in os.walk(repo):
+        for d in dirs:
+            foto[os.path.relpath(os.path.join(radice, d), repo) + "/"] = "cartella"
+        for f in files:
+            p = os.path.join(radice, f)
+            rel = os.path.relpath(p, repo)
+            if rel != ".createrepo.log":
+                foto[rel] = "collegamento" if os.path.islink(p) else _somma(p, "sha256")
+    return foto
+
+
+def _scambia(a, b):
+    """Scambia due cartelle dello stesso filesystem in UN passo (renameat2 con RENAME_EXCHANGE): nessun
+    lettore trova mai b mancante. Dove il kernel o il filesystem non lo sanno fare, tre rename: per un
+    istante b manca, come nei due rename con cui createrepo_c stesso pubblica i metadati."""
+    try:
+        import ctypes
+        libc = ctypes.CDLL(None, use_errno=True)
+        if libc.renameat2(-100, os.fsencode(a), -100, os.fsencode(b), 2) == 0:   # AT_FDCWD, RENAME_EXCHANGE
+            return
+    except (AttributeError, OSError):
+        pass
+    tmp = "%s.scambio-%d" % (b, os.getpid())
+    os.rename(b, tmp)
+    try:
+        os.rename(a, b)
+    except OSError:
+        os.rename(tmp, b)                    # a non si sposta: b torna dov'era, niente scambio
+        raise
+    os.rename(tmp, a)
+
+
+def _rimetti_metadati(salvati, repo):
+    """repodata/ torna quella salvata prima di cominciare; se prima non c'era, sparisce."""
+    dest = os.path.join(repo, "repodata")
+    if salvati is None:
+        if os.path.lexists(dest):
+            shutil.rmtree(dest)
+    elif os.path.isdir(dest):
+        _scambia(salvati, dest)          # in `salvati` restano i metadati nuovi: se ne vanno con la riserva
+    else:                                # createrepo_c fermato fra i suoi due rename: repodata/ non c'e'
+        os.rename(salvati, dest)
+
+
+def _ritorno(repo, prima, voci_prima, create, riserva, metadati_salvati, aggiunti, sostituiti, tolti):
+    """Il repo torna com'era. S2t (02.11, delta): con un errore DOPO che createrepo_c aveva
+    scritto i metadati nuovi, i file tornavano indietro e i metadati no: nominavano tre RPM tolti dal disco
+    e dnf vedeva pacchetti che non c'erano. Ora PRIMA i metadati (quelli salvati prima di cominciare), POI
+    i file: in nessun istante i metadati nominano un file che non c'e'. Se i metadati di prima non tornano,
+    i file seguono i metadati RIMASTI (tornano solo quelli che non nominano): un repo coerente col giro nuovo
+    e' meno peggio di metadati che nominano file tolti. Poi la verifica AL BYTE contro la foto presa prima
+    di cominciare. Restituisce la frase del Guasto: «lasciato com'era» solo se verificato."""
+    errori = []
+
+    def passo(f, *a):
+        try:
+            f(*a)
+            return True
+        except OSError as e:
+            errori.append("%s: %s" % (f.__name__, e))
+            return False
+
+    rimasti = None                               # i metadati sul disco, se quelli di prima non tornano
+    if not passo(_rimetti_metadati, metadati_salvati, repo):
+        try:
+            rimasti = metadati(repo)
+        except Guasto:
+            rimasti = {}
+
+    def torna(d):
+        """Il file d torna com'era? Sempre, se i metadati sono tornati; altrimenti solo se i metadati rimasti non
+        nominano la versione nuova (con la loro somma)."""
+        voce = None if rimasti is None else rimasti.get("Packages/" + os.path.basename(d))
+        try:
+            return voce is None or _somma(d, voce[2][0]) != voce[2][1]
+        except (OSError, ValueError):
+            return True
+
+    for d in aggiunti + sostituiti:
+        if os.path.lexists(d + ".parziale"):
+            passo(os.unlink, d + ".parziale")
+    for d in aggiunti:
+        if os.path.lexists(d) and torna(d):
+            passo(os.unlink, d)
+    for d in sostituiti:
+        if torna(d):
+            passo(os.replace, os.path.join(riserva, "sostituiti", os.path.relpath(d, repo)), d)
+    for d in tolti:
+        if rimasti is None or "Packages/" + os.path.basename(d) in rimasti:
+            passo(os.replace, os.path.join(riserva, "potati", os.path.relpath(d, repo)), d)
+    # cio' che createrepo_c lascia se si ferma a meta': una .repodata/ rimasta blocca ogni createrepo_c dopo
+    try:
+        for nome in sorted(set(os.listdir(repo)) - voci_prima):
+            if nome.startswith((".repodata", "repodata.old.")):
+                passo(shutil.rmtree, os.path.join(repo, nome))
+        for d in reversed(create):               # Packages/ e PROVENIENZA/ nate in questo giro, se vuote
+            try:
+                os.rmdir(d)
+            except OSError:
+                pass                             # non vuota: lo dice la verifica (.createrepo.log non conta)
+        dopo = _istantanea(repo)
+    except OSError as e:
+        errori.append("verifica: %s" % e)
+        dopo = {}
+    diversi = sorted(k for k in set(prima) | set(dopo) if prima.get(k) != dopo.get(k))
+    if not diversi and not errori:
+        return "repo lasciato com'era (metadati e file di prima, verificati al byte)"
+    try:
+        coerenza = "; ".join(incoerenze(repo))[:150] or "metadati e file combaciano"
+    except OSError as e:
+        coerenza = str(e)
+    return "ritorno indietro INCOMPLETO, il repo NON e' com'era: %s%s%s; coerenza: %s" % (
+        ", ".join(diversi[:6]) or "?", (" (errori: %s)" % "; ".join(errori)[:200]) if errori else "",
+        "; i metadati di prima non tornano, i file seguono quelli rimasti" if rimasti is not None else "", coerenza)
+
+
+def pubblica(rpm_dir, repo, tieni=TIENI):
+    """Copia gli RPM provati nel repo, aggiorna i metadati, pota le build vecchie (mai l'installata).
+    Tutto o niente: se un passo qualsiasi fallisce (createrepo_c, anche dopo aver scritto i metadati
+    nuovi; la potatura; la provenienza; la verifica finale) il repo torna com'era, METADATI E FILE, e il
+    ritorno si verifica al byte (_ritorno, S2t). Le build potate escono prima dai metadati (--excludes) e
+    poi dal disco, nella riserva fino alla fine: nessun metadato nomina un file che non c'e' (prima si
+    cancellavano PRIMA di createrepo_c, S2). Alla fine si rileggono i metadati: devono pubblicare i nuovi
+    e combaciare coi file."""
+    rpm_dir, repo = os.path.abspath(rpm_dir), os.path.abspath(repo)
+    pacchetti = os.path.join(repo, "Packages")
+    prov_dir = os.path.join(repo, "PROVENIENZA")
+    try:
+        prima = _istantanea(repo)
+        voci_prima = set(os.listdir(repo)) if os.path.isdir(repo) else set()
+        create = [d for d in (repo, pacchetti, prov_dir) if not os.path.isdir(d)]
+        os.makedirs(pacchetti, exist_ok=True)
+        os.makedirs(prov_dir, exist_ok=True)
+    except OSError as e:
+        raise Guasto("non riesco a leggere il repo %s (%s): non pubblico" % (repo, e))
+    # la riserva sta FUORI dal repo (createrepo_c indicizza ogni .rpm che trova sotto) ma sul suo stesso
+    # filesystem: il ritorno indietro e' fatto di rename
+    riserva = tempfile.mkdtemp(prefix=".pubblica-", dir=os.path.dirname(repo))
+    metadati_salvati = None
+    try:
+        if os.stat(riserva).st_dev != os.stat(repo).st_dev:
+            raise Guasto("il repo %s sta su un altro filesystem della sua cartella: il ritorno indietro non "
+                         "si puo' garantire" % repo)
+        if os.path.isdir(os.path.join(repo, "repodata")):
+            shutil.copytree(os.path.join(repo, "repodata"), os.path.join(riserva, "repodata"), symlinks=True)
+            metadati_salvati = os.path.join(riserva, "repodata")
+    except (Guasto, OSError) as e:
+        shutil.rmtree(riserva, ignore_errors=True)
+        raise Guasto("metadati del repo non messi da parte (%s): non pubblico, repo non toccato" % e)
+    nuovi, aggiunti, sostituiti, tolti = [], [], [], []
+
+    def metti(sorgente, dest):
+        """sorgente -> dest nel repo; la versione di prima di dest resta nella riserva, per il ritorno."""
+        if os.path.lexists(dest):
+            copia = os.path.join(riserva, "sostituiti", os.path.relpath(dest, repo))
+            os.makedirs(os.path.dirname(copia), exist_ok=True)
+            try:
+                os.link(dest, copia)
+            except OSError:
+                shutil.copy2(dest, copia)
+            sostituiti.append(dest)
+        else:
+            aggiunti.append(dest)
+        shutil.copy2(sorgente, dest + ".parziale")
+        os.chmod(dest + ".parziale", 0o644)
+        os.replace(dest + ".parziale", dest)
+
+    try:
+        for r in sorted(glob.glob(os.path.join(rpm_dir, "*.rpm"))):
+            dest = os.path.join(pacchetti, os.path.basename(r))
+            metti(r, dest)
+            nuovi.append(dest)
+        potati = da_potare(repo, tieni)
+        cmd = [CREATEREPO, "--update", "--quiet"]
+        for f in potati:
+            cmd += ["--excludes", os.path.basename(f)]
+        if esegui(cmd + [repo], log=os.path.join(repo, ".createrepo.log")) != 0:
+            raise Guasto("createrepo_c fallito: %s" % motivo(os.path.join(repo, ".createrepo.log")))
+        # le potate, ormai fuori dai metadati, escono dal disco: nella riserva finche' tutto non e' verificato
+        for f in potati:
+            tenuto = os.path.join(riserva, "potati", os.path.relpath(f, repo))
+            os.makedirs(os.path.dirname(tenuto), exist_ok=True)
+            os.replace(f, tenuto)
+            tolti.append(f)
+        prov = os.path.join(rpm_dir, "PROVENIENZA.json")
+        if os.path.isfile(prov):
+            p = json.load(open(prov))
+            nome = "%s.json" % re.sub(r"[^A-Za-z0-9._-]", "_", next(
+                (k for k in p.get("rpm", {}) if k.startswith("nautilus-5")), "nautilus-senza-nome"))
+            metti(prov, os.path.join(prov_dir, nome))
+        permessi_repo(repo)
+        pub = metadati(repo)
+        mancano = [os.path.basename(n) for n in nuovi if "Packages/" + os.path.basename(n) not in pub]
+        problemi = incoerenze(repo)
+        if mancano or problemi:
+            raise Guasto("dopo createrepo_c i metadati non combaciano coi file: %s"
+                         % "; ".join((["non pubblicati: " + ", ".join(mancano)] if mancano else []) + problemi)[:300])
+    except BaseException as e:
+        esito = _ritorno(repo, prima, voci_prima, create, riserva, metadati_salvati, aggiunti, sostituiti, tolti)
+        shutil.rmtree(riserva, ignore_errors=True)
+        if isinstance(e, Guasto):
+            raise Guasto("%s; %s" % (e, esito)) from e
+        if isinstance(e, (OSError, ValueError)):          # disco pieno, PROVENIENZA.json rotto, ...
+            raise Guasto("pubblicazione fallita (%s); %s" % (e, esito)) from e
+        raise
+    shutil.rmtree(riserva, ignore_errors=True)
+    return nuovi
+
+
+def ripara(repo):
+    """I metadati tornano a pubblicare esattamente i file di Packages/ (un giro interrotto fra la copia e
+    createrepo_c, o metadati toccati da fuori). Guasto se non ci si riesce."""
+    if esegui([CREATEREPO, "--update", "--quiet", repo], log=os.path.join(repo, ".createrepo.log")) != 0:
+        raise Guasto("createrepo_c fallito: " + motivo(os.path.join(repo, ".createrepo.log")))
+    permessi_repo(repo)
+    problemi = incoerenze(repo)
+    if problemi:
+        raise Guasto("metadati ancora incoerenti dopo createrepo_c: " + "; ".join(problemi)[:300])
+
+
+def cmd_pubblica(a):
+    try:
+        nuovi = pubblica(a.rpm_dir, a.repo, a.tieni)
+    except Guasto as e:
+        print("GUASTO: %s" % e, file=sys.stderr)
+        return 1
+    print("\n".join(nuovi))
+    return 0
+
+
+# --- controlla / automatico -----------------------------------------------------------------------
+
+def fedora_piu_nuovo():
+    """Il nautilus piu' nuovo che Fedora pubblica, dai repo SORGENTE (li' non c'e' esclusione)."""
+    cmd = [DNF, "-q", "repoquery", "--latest-limit=1", "--qf", "%{version}-%{release}\n"]
+    for r in REPO_SORGENTE:
+        cmd += ["--repo", r]
+    r = uscita(cmd + ["nautilus"], ambiente={"LC_ALL": "C"})
+    versioni = [v for v in r.stdout.split() if re.fullmatch(r"[0-9][^\s]*-[0-9][^\s]*", v)]
+    if r.returncode != 0 or not versioni:
+        raise Guasto("non riesco a leggere i repo sorgente di Fedora: " + (r.stderr.strip()[-200:] or "?"))
+    import functools
+    return sorted(versioni, key=functools.cmp_to_key(vercmp))[-1]
+
+
+def nel_repo(repo, nome="nautilus"):
+    """La build CodLab piu' nuova di `nome` che il repo PUBBLICA davvero ("versione-release"), o None:
+    nei metadati, sul disco e con la somma dei metadati. Un RPM copiato in Packages/ ma non nei metadati
+    non conta (S2): nessun cliente di libdnf5 lo vede."""
+    try:
+        pub = metadati(repo)
+    except Guasto:
+        return None
+    voci = [vr for loc, (n, vr, (tipo, somma)) in pub.items()
+            if n == nome and os.path.isfile(os.path.join(repo, loc))
+            and _somma(os.path.join(repo, loc), tipo) == somma]
+    if not voci:
+        return None
+    import functools
+    return sorted(voci, key=functools.cmp_to_key(vercmp))[-1]
+
+
+def decidi(fedora, nostro, codlab_rel):
+    """Serve ricostruire? fedora = "51.1-2.fc45" (Fedora piu' nuovo), nostro = "51.1-2.1.codlab.fc45"
+    (il piu' nuovo dei nostri, installato o nel repo) o None. Il nostro e' «allineato» quando ha la
+    stessa versione e la stessa base di release di Fedora e la revisione della serie in vigore."""
+    v_f, r_f = fedora.rsplit("-", 1)
+    obiettivo = "%s-%s.%s.codlab.%s" % (v_f, base_fedora(r_f), codlab_rel, r_f.rsplit(".", 1)[-1])
+    if nostro is None:
+        return True, obiettivo, "nessun nautilus CodLab"
+    if vercmp(nostro, obiettivo) >= 0:
+        return False, obiettivo, "il nostro %s e' gia' alla pari o piu' nuovo di %s" % (nostro, obiettivo)
+    return True, obiettivo, "Fedora %s: il nostro %s va ricostruito come %s" % (fedora, nostro, obiettivo)
+
+
+def leggi_stato():
+    try:
+        return json.load(open(STATO))
+    except (OSError, ValueError):
+        return {}
+
+
+def scrivi_stato(s):
+    os.makedirs(os.path.dirname(STATO), exist_ok=True)
+    tmp = STATO + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(s, f, indent=1, ensure_ascii=False)
+    os.replace(tmp, STATO)
+
+
+def avvisa(titolo, testo, livello="normal", cosa_fare=None):
+    cmd = [AVVISA, titolo, testo, livello] + ([cosa_fare] if cosa_fare else [])
+    try:
+        subprocess.run(cmd, timeout=120)
+    except (OSError, subprocess.TimeoutExpired):
+        print("avviso non consegnato: %s — %s" % (titolo, testo), file=sys.stderr)
+
+
+def cmd_controlla(a):
+    serie = leggi_serie(a.serie)
+    try:
+        fedora = a.fedora or fedora_piu_nuovo()
+    except Guasto as e:
+        print("GUASTO: %s" % e, file=sys.stderr)
+        return 1
+    inst = installato("nautilus")
+    repo = nel_repo(a.repo)
+    nostri = [v for v in (inst, repo) if v and ".codlab." in v]
+    import functools
+    nostro = sorted(nostri, key=functools.cmp_to_key(vercmp))[-1] if nostri else None
+    serve, obiettivo, perche = decidi(fedora, nostro, serie["codlab_rel"])
+    d = {"fedora": fedora, "installato": inst, "nel_repo": repo, "serie": serie["serie"],
+         "codlab_rel": serie["codlab_rel"], "obiettivo": obiettivo, "serve_ricostruire": serve,
+         "perche": perche}
+    print(json.dumps(d, indent=1, ensure_ascii=False) if a.json else
+          "%s\n  installato %s, nel repo %s, Fedora %s" % (perche, inst, repo, fedora))
+    return 0
+
+
+def cmd_automatico(a):
+    os.makedirs(os.path.dirname(STATO) or ".", exist_ok=True)
+    lock = open(os.path.join(os.path.dirname(STATO), ".ricostruisci.lock"), "w")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        return 0                               # un altro giro e' gia' al lavoro
+    serie = leggi_serie(a.serie)
+    stato = leggi_stato()
+    problemi = incoerenze(a.repo)
+    if problemi:
+        # i file del repo e i suoi metadati non combaciano (S2): si ripara PRIMA di decidere, perche' la
+        # decisione legge i metadati
+        try:
+            ripara(a.repo)
+            print("repo codlab riparato: " + "; ".join(problemi)[:300])
+        except Guasto as e:
+            m = "repo codlab incoerente e non riparato: %s (%s)" % (e, "; ".join(problemi)[:200])
+            print("ROSSO: " + m, file=sys.stderr)
+            if stato.get("ultimo_avviso") != "ripara|" + m[:80]:
+                avvisa("Repo CodLab: metadati non riparati", "%s. I pacchetti installati restano; il repo "
+                       "codlab non pubblica cio' che ha su disco." % m, "critical",
+                       "sudo createrepo_c --update %s, poi sudo systemctl start nautilus-barra.service" % a.repo)
+                stato["ultimo_avviso"] = "ripara|" + m[:80]
+            stato.update({"ultimo_giro": time.strftime("%F %T"), "esito": "rosso", "motivo": m})
+            scrivi_stato(stato)
+            return 1
+    try:
+        fedora = fedora_piu_nuovo()
+    except Guasto as e:
+        print("GUASTO: %s" % e, file=sys.stderr)
+        return 0        # rete o mirror giu': nessun danno, si riprova al prossimo giro, senza avviso
+    inst = installato("nautilus")
+    repo = nel_repo(a.repo)
+    import functools
+    nostri = [v for v in (inst, repo) if v and ".codlab." in v]
+    nostro = sorted(nostri, key=functools.cmp_to_key(vercmp))[-1] if nostri else None
+    serve, obiettivo, perche = decidi(fedora, nostro, serie["codlab_rel"])
+    print(perche)
+    if not serve:
+        return 0
+    lavoro = os.path.join(LAVORO, obiettivo)
+    shutil.rmtree(lavoro, ignore_errors=True)
+    os.makedirs(lavoro)
+    scarico = os.path.join(lavoro, "srpm")
+    os.makedirs(scarico)
+    try:
+        cmd = [DNF, "-q", "download", "--destdir", scarico]
+        for r in REPO_SORGENTE:
+            cmd += ["--repo", r]
+        if esegui(cmd + ["nautilus-%s.src" % fedora], log=os.path.join(lavoro, "download.log")) != 0:
+            raise Guasto("non riesco a scaricare l'SRPM nautilus-%s: %s" % (
+                fedora, motivo(os.path.join(lavoro, "download.log"))))
+        srpm = glob.glob(os.path.join(scarico, "nautilus-*.src.rpm"))
+        if len(srpm) != 1:
+            raise Guasto("scaricati %d SRPM invece di 1" % len(srpm))
+        k = uscita(["rpm", "-K", srpm[0]], ambiente={"LC_ALL": "C"})
+        if k.returncode != 0 or "signatures OK" not in k.stdout:
+            raise Guasto("l'SRPM non ha una firma Fedora valida: " + (k.stdout + k.stderr).strip()[:200])
+        rpm_dir = os.path.join(lavoro, "rpm")
+        costruisci(srpm[0], serie, rpm_dir, os.path.join(lavoro, "build"), utente=UTENTE,
+                   cpu=a.cpu, builddep=False)
+        esiti = prova(rpm_dir, fedora.split("-")[0], serie.get("marcatori", []),
+                      lavoro=os.path.join(lavoro, "build", "tmp"), utente=UTENTE)
+        pubblica(rpm_dir, a.repo)
+    except Guasto as e:
+        m = str(e)
+        rimandato = m.startswith("RIMANDATO")
+        dipendenze = isinstance(e, DipendenzeMancanti)
+        chiave = "%s|%s" % (obiettivo, m[:80])
+        print(("RIMANDATO: " if rimandato else "IN ATTESA: " if dipendenze else "ROSSO: ") + m, file=sys.stderr)
+        if stato.get("ultimo_avviso") != chiave:
+            if dipendenze:
+                avvisa("Nautilus CodLab: ricostruzione in attesa di dipendenze",
+                       "%s. Resta il nostro %s: niente e' stato sostituito, nessuna rottura. Le installa "
+                       "l'ingresso a mano, senza una transazione offline in coda, poi il giro dopo ricostruisce."
+                       % (m, inst or "?"), "normal",
+                       "solo se «sudo env LC_ALL=C dnf5 offline status» dice «No offline transaction is "
+                       "stored»: %s; poi sudo systemctl start nautilus-barra.service" % e.comando())
+            else:
+                avvisa("Nautilus CodLab: ricostruzione %s" % ("rimandata" if rimandato else "NON riuscita"),
+                       "%s. Resta il nostro %s: niente e' stato sostituito, nessuna rottura. Lavoro: %s"
+                       % (m, inst or "?", lavoro),
+                       "low" if rimandato else "critical",
+                       None if rimandato else "le patch vanno portate a mano sulla versione nuova (banco nautilus)")
+            stato["ultimo_avviso"] = chiave
+        stato.update({"ultimo_giro": time.strftime("%F %T"),
+                      "esito": "rimandato" if rimandato else "dipendenze" if dipendenze else "rosso",
+                      "obiettivo": obiettivo, "motivo": m})
+        scrivi_stato(stato)
+        return 0 if rimandato else 1
+    stato.update({"ultimo_giro": time.strftime("%F %T"), "esito": "pubblicato", "obiettivo": obiettivo,
+                  "motivo": "; ".join(esiti), "ultimo_avviso": None})
+    scrivi_stato(stato)
+    avvisa("Nautilus CodLab %s pronto" % obiettivo,
+           "Fedora ha pubblicato nautilus %s: le patch CodLab (serie %s) sono state ricostruite sopra, "
+           "provate e messe nel repo locale «codlab». Arriva col prossimo aggiornamento, al riavvio che "
+           "decidi tu; fino ad allora resta il nostro %s." % (fedora, serie["serie"], inst or "?"), "normal")
+    return 0
+
+
+def main(argv=None):
+    p = argparse.ArgumentParser(prog="codlab-nautilus-ricostruisci", add_help=False,
+                                description="Il Nautilus CodLab si ricostruisce a monte di Fedora.")
+    p.add_argument("--aiuto", action="help")
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    c = sub.add_parser("controlla", add_help=False)
+    c.add_argument("--aiuto", action="help")
+    c.add_argument("--serie", default=None)
+    c.add_argument("--repo", default=REPO)
+    c.add_argument("--fedora", help="versione-release Fedora da usare al posto dei repo (prove)")
+    c.add_argument("--json", action="store_true")
+    c.set_defaults(f=cmd_controlla)
+
+    s = sub.add_parser("prepara-spec", add_help=False)
+    s.add_argument("--aiuto", action="help")
+    s.add_argument("--serie", default=None)
+    s.add_argument("--spec", required=True)
+    s.add_argument("--uscita", required=True)
+    s.add_argument("--rel-base", required=True)
+    s.add_argument("--versione-fedora", required=True)
+    s.set_defaults(f=cmd_prepara_spec)
+
+    b = sub.add_parser("costruisci", add_help=False)
+    b.add_argument("--aiuto", action="help")
+    b.add_argument("--serie", default=None)
+    b.add_argument("--srpm", required=True)
+    b.add_argument("--uscita", required=True)
+    b.add_argument("--lavoro", required=True)
+    b.add_argument("--utente", default=None)
+    b.add_argument("--cpu", type=int, default=8)
+    b.add_argument("--builddep", action="store_true",
+                   help="installa le dipendenze di build (root, SOLO a mano e senza coda offline; "
+                        "il giro automatico non lo fa mai)")
+    b.set_defaults(f=cmd_costruisci)
+
+    v = sub.add_parser("prova", add_help=False)
+    v.add_argument("--aiuto", action="help")
+    v.add_argument("--serie", default=None)
+    v.add_argument("--rpm-dir", required=True)
+    v.add_argument("--versione-attesa")
+    v.add_argument("--marcatore", action="append")
+    v.add_argument("--senza-risoluzione", action="store_true")
+    v.set_defaults(f=cmd_prova)
+
+    u = sub.add_parser("pubblica", add_help=False)
+    u.add_argument("--aiuto", action="help")
+    u.add_argument("--rpm-dir", required=True)
+    u.add_argument("--repo", default=REPO)
+    u.add_argument("--tieni", type=int, default=TIENI)
+    u.set_defaults(f=cmd_pubblica)
+
+    t = sub.add_parser("automatico", add_help=False)
+    t.add_argument("--aiuto", action="help")
+    t.add_argument("--serie", default=None)
+    t.add_argument("--repo", default=REPO)
+    t.add_argument("--cpu", type=int, default=8)
+    t.set_defaults(f=cmd_automatico)
+
+    a = p.parse_args(argv)
+    return a.f(a)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,18 @@
+# Anteprime RAW per Nautilus (CodLab, incremento 1b «Nautilus potente»)
+#
+# Installato da nautilus-codlab-integrazione in /usr/local/share/thumbnailers/.
+# Lo script richiamato e' /usr/local/bin/nautilus-raw-anteprima: estrae il
+# JPEG incorporato nel RAW con exiv2 e lo ridimensiona con ImageMagick.
+# Nessun formato nuovo viene DECODIFICATO: si usa l'anteprima che la fotocamera
+# ha gia' scritto dentro il file (come l'estensione RAW di Windows).
+#
+# CR2/CR3: le CR3 (ISO Base Media) sono lette da exiv2 >= 0.28; qui non c'e'
+# un file CR3 campione provato (nessuno sul disco): dichiarato, non dimostrato.
+[Thumbnailer Entry]
+Version=1.0
+Encoding=UTF-8
+Type=Thumbnailer
+Name=Anteprime RAW dal JPEG incorporato (CodLab)
+TryExec=/usr/local/bin/nautilus-raw-anteprima
+Exec=/usr/local/bin/nautilus-raw-anteprima %i %o %s
+MimeType=image/x-canon-cr2;image/x-canon-cr3;image/x-nikon-nef;image/x-sony-arw;image/x-sony-sr2;image/x-adobe-dng;image/x-fuji-raf;image/x-olympus-orf;image/x-olympus-raw;image/x-panasonic-rw2;image/x-panasonic-raw;image/x-pentax-pef;image/x-pentax-dng;image/x-sigma-x3f;image/x-minolta-mrw;image/x-kodak-dcr;image/x-kodak-kdc;image/x-leaf;image/x-hasselblad-3fr;image/x-phaseone-raw;

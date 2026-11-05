@@ -1,0 +1,30 @@
+# /etc/dnf/repos.override.d/80-codlab-esclusioni.repo (pacchetto codlab-repo)
+#
+# I pacchetti che CodLab ricostruisce da se' non si prendono dai repo BINARI di Fedora: li offre solo
+# il repo locale «codlab». Vale per ogni cliente di libdnf5 — dnf5, aggiornamento-sicuro, la
+# transazione offline, dnf5daemon/GNOME Software, PackageKit — perche' e' configurazione dei repo, non
+# un'opzione di un comando.
+#
+# Perche' qui e non altrove (02.11.2026, misurato in radice finta):
+#   - versionlock: legato all'evr esatto, blocca anche i NOSTRI aggiornamenti, e aggiunto dopo uno
+#     stage fa fallire al riavvio l'intera transazione offline (08:03 del 02.11, 505 pacchetti);
+#   - --exclude / excludepkgs globali: nascondono anche i pacchetti INSTALLATI, e chi li richiede
+#     (gnome-classic-session, file-roller-nautilus) resta senza fornitore;
+#   - priorita' del repo codlab da sola: un pacchetto che chiede un nautilus piu' nuovo lo trascina
+#     da Fedora al posto del nostro.
+# Un'esclusione per repo nasconde solo cio' che QUEL repo offre: l'installato resta visibile, chi lo
+# richiede resta soddisfatto, e un aggiornamento che chiederebbe un nautilus piu' nuovo viene
+# semplicemente rimandato (best=0) finche' codlab-nautilus-ricostruisci non pubblica il nostro.
+#
+# NON si escludono i repo -source: da li' codlab-nautilus-ricostruisci prende l'SRPM di Fedora.
+# Il controllo (una prova del risolutore in radice finta) diventa rosso se l'esclusione non e' efficace.
+# Nell'ordine dei file vale l'ultima opzione: un `dnf5 config-manager setopt <repo>.excludepkgs=…`
+# scriverebbe in 99-config_manager.repo e prevarrebbe su questo; il controllo lo vede.
+[fedora]
+excludepkgs=nautilus,nautilus-extensions,nautilus-devel
+
+[updates]
+excludepkgs=nautilus,nautilus-extensions,nautilus-devel
+
+[updates-testing]
+excludepkgs=nautilus,nautilus-extensions,nautilus-devel

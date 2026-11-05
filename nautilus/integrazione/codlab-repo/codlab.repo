@@ -1,0 +1,19 @@
+# /etc/yum.repos.d/codlab.repo — il repo locale dei pacchetti CodLab costruiti su questa macchina (pacchetto codlab-repo).
+#
+# Fonte unica dei pacchetti nostri: nautilus/nautilus-extensions ricostruiti con le patch CodLab
+# (codlab-nautilus-ricostruisci), nautilus-codlab-integrazione, e domani CodLab Thema. Lo riempie solo
+# codlab-nautilus-ricostruisci (o un gesto root dell'amministratore); i file sono root:root 0644.
+#
+# gpgcheck=0: i pacchetti sono costruiti qui e il repo e' una cartella locale scrivibile solo da root.
+# Chi puo' scriverci e' gia' root: una firma non aggiungerebbe una difesa, aggiungerebbe un segreto.
+# skip_if_unavailable=1: se la cartella sparisse, gli aggiornamenti di Fedora devono continuare.
+# Il nostro vince su Fedora perche' i repo binari di Fedora NON offrono i nostri nomi
+# (/etc/dnf/repos.override.d/80-codlab-esclusioni.repo), non per priorita'.
+[codlab]
+name=CodLab — pacchetti locali
+baseurl=file:///var/lib/codlab-rpm/repo
+enabled=1
+gpgcheck=0
+repo_gpgcheck=0
+skip_if_unavailable=1
+metadata_expire=0

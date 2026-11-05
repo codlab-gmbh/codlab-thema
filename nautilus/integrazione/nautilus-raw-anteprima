@@ -1,0 +1,114 @@
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
+"""Anteprime RAW per Nautilus: estrae il JPEG incorporato e lo ridimensiona.
+
+I RAW delle fotocamere (CR2, CR3, NEF, ARW, DNG, RAF, ORF, RW2, ...) contengono
+quasi tutti un'anteprima JPEG in piena risoluzione generata dalla macchina:
+estra quella (exiv2), invece di decodificare il sensore (LibRaw, che qui non
+c'e' e non si aggiunge). E' la stessa cosa che fa Esplora file di Windows con
+l'estensione «Raw Image Extension»: anteprima incorporata, non conversione.
+
+Dipendenze: exiv2 e ImageMagick (magick/convert), gia' presenti sul sistema.
+Nessuna libreria nuova, nessun demone, nessun accesso in rete.
+
+Invocato da gnome-desktop-thumbnailer come da file .thumbnailer:
+    nautilus-raw-anteprima INPUT OUTPUT SIZE
+dove INPUT e' il RAW, OUTPUT il PNG da scrivere, SIZE la dimensione massima
+in pixel (256 o 512). Se il RAW non contiene anteprime (o exiv2 non lo capisce),
+si esce con codice 3 e Nautilus mostra l'icona generica di sempre: nessun
+regredire, nessun crash — oggi quei file non hanno anteprima comunque.
+
+Uscite:
+    0  anteprima scritta
+    1  argomenti sbagliati / input mancante
+    2  exiv2 o convert assenti (il .thumbnailer ha TryExec, ma si ricontrolla)
+    3  nessuna anteprima estraibile
+    4  errore di exiv2/convert/scrittura
+"""
+
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+
+def main(argv):
+    if len(argv) != 4:
+        print("uso: nautilus-raw-anteprima INPUT OUTPUT SIZE", file=sys.stderr)
+        return 1
+    ingresso = Path(argv[1])
+    uscita = Path(argv[2])
+    try:
+        size = int(argv[3])
+    except ValueError:
+        print(f"SIZE non e' un numero: {argv[3]!r}", file=sys.stderr)
+        return 1
+    if size <= 0:
+        print(f"SIZE non positivo: {size}", file=sys.stderr)
+        return 1
+    if not ingresso.is_file():
+        print(f"input mancante: {ingresso}", file=sys.stderr)
+        return 1
+
+    exiv2 = shutil.which("exiv2")
+    magick = shutil.which("magick") or shutil.which("convert")
+    if not exiv2 or not magick:
+        print("manca exiv2 o ImageMagick", file=sys.stderr)
+        return 2
+
+    # 1) estrazione TUTTE le anteprime in una directory temporanea.
+    #    exiv2 le scrive ACCANTO AL FILE DI INPUT (misurato: non nella cwd, e
+    #    non esiste un'opzione di destinazione — il «-d» del pensarlo bene e'
+    #    «delete»), quindi si passa per un SYMLINK nel temporaneo: cosi' le
+    #    anteprime finiscono nel temporaneo e la cartella dell'utente non
+    #    viene toccata (niente scritture, niente mount read-only che falliscono,
+    #    niente conflitti con altri processi). Nessuna copia del RAW: il file
+    #    resta uno solo, letto per symlink.
+    #    Si tiene la piu' GRANDE delle anteprime (di solito e' quella a piena
+    #    risoluzione generata dalla fotocamera).
+    with tempfile.TemporaryDirectory(prefix="raw-anteprima-") as tmp:
+        nome_finzione = os.path.join(tmp, "fotografia.raw")
+        os.symlink(ingresso.resolve(), nome_finzione)
+        r = subprocess.run(
+            [exiv2, "-q", "-e", "p-", "fotografia.raw"],
+            capture_output=True, text=True, timeout=30, cwd=tmp)
+        if r.returncode != 0:
+            print(f"exiv2 ({ingresso.name}): {r.stderr.strip()[:200]}",
+                  file=sys.stderr)
+            return 4
+        candidati = sorted(
+            (p for p in Path(tmp).iterdir() if p.suffix.lower() in (".jpg", ".jpeg", ".tif", ".tiff")),
+            key=lambda p: p.stat().st_size, reverse=True)
+        if not candidati:
+            print(f"nessuna anteprima incorporata in {ingresso.name}",
+                  file=sys.stderr)
+            return 3
+        la_migliore = candidati[0]
+
+        # 2) ridimensionamento: -auto-orient applica l'orientamento EXIF del
+        #    JPEG incorporato stesso; -thumbnail fa il resample confiltro
+        #    (senza scrivere a nostra volta EXIF di orientamento)
+        #    PNG in uscita: e' il formato che gnome-desktop aspetta per la
+        #    cache delle miniature.
+        cmd = [magick, str(la_migliore),
+               "-auto-orient", "-thumbnail", f"{size}x{size}",
+               "-strip", str(uscita)]
+        if magick.endswith("convert"):
+            # IMv7: convert deprecato ma funziona; equivalente a magick
+            pass
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        if r.returncode != 0 or not (uscita.is_file() and uscita.stat().st_size > 0):
+            print(f"ImageMagick: {r.stderr.strip()[:200]}", file=sys.stderr)
+            return 4
+
+    # 3) sanita' dell'output: un'immagine con area nulla non e' un'anteprima
+    if uscita.stat().st_size < 100:
+        print("anteprima sospettosamente piccola (>0 ma <100 byte)", file=sys.stderr)
+        return 4
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv))

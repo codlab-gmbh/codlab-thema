@@ -1,0 +1,11 @@
+[Unit]
+Description=Rimette la barra col conteggio elementi in Nautilus dopo un aggiornamento
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/nautilus-barra-aggiorna
+Nice=15
+IOSchedulingClass=idle
+TimeoutStartSec=3600
