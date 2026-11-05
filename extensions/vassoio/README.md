@@ -44,4 +44,4 @@ Toglie solo `vassoio@codlab.de` dall'elenco delle abilitate, rimette le sue chia
 cartella se è ancora la nostra. A mano: `gnome-extensions disable vassoio@codlab.de`, poi
 `rm -r ~/.local/share/gnome-shell/extensions/vassoio@codlab.de ~/.local/state/vassoio`.
 
-Licenza: GPL-3.0-or-later (vedi [LICENSE.md](../../LICENSE.md)).
+Licenza: vedi [LICENSE.md](../../LICENSE.md).

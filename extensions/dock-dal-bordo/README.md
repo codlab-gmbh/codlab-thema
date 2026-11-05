@@ -40,4 +40,4 @@ systemctl --user daemon-reload
 rm -f ~/.config/meraviglioso/dock-dal-bordo-* ~/.config/meraviglioso/.fatto-dock-*
 ```
 
-Licenza: GPL-3.0-or-later (vedi [LICENSE.md](../../LICENSE.md)).
+Licenza: vedi [LICENSE.md](../../LICENSE.md).

@@ -21,4 +21,4 @@ gnome-extensions disable rifiniture@codlab.de
 rm -r ~/.local/share/gnome-shell/extensions/rifiniture@codlab.de
 ```
 
-Licenza: GPL-3.0-or-later (vedi [LICENSE.md](../../LICENSE.md)).
+Licenza: vedi [LICENSE.md](../../LICENSE.md).

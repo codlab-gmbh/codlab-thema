@@ -25,4 +25,4 @@ gnome-extensions disable svuota-notifiche@codlab
 rm -r ~/.local/share/gnome-shell/extensions/svuota-notifiche@codlab
 ```
 
-Licenza: GPL-3.0-or-later (vedi [LICENSE.md](../../LICENSE.md)).
+Licenza: vedi [LICENSE.md](../../LICENSE.md).

@@ -43,4 +43,4 @@ python3 posa/vetro_posa.py ritorno posa/ritorni/<ora> --esegui        # rimette 
 A mano: `gnome-extensions disable vetro@codlab.de`, poi `rm -r ~/.local/share/gnome-shell/extensions/vetro@codlab.de
 ~/.local/state/vetro-codlab`.
 
-Licenza: GPL-3.0-or-later (vedi [LICENSE.md](../../LICENSE.md)).
+Licenza: vedi [LICENSE.md](../../LICENSE.md).

@@ -22,4 +22,4 @@ gnome-extensions disable quiete-aree@codlab.de
 rm -r ~/.local/share/gnome-shell/extensions/quiete-aree@codlab.de
 ```
 
-Licenza: GPL-3.0-or-later (vedi [LICENSE.md](../../LICENSE.md)).
+Licenza: vedi [LICENSE.md](../../LICENSE.md).
