@@ -1,0 +1,7 @@
+{
+  "uuid": "quiete-aree@codlab.de",
+  "name": "Quiete delle aree",
+  "description": "Dopo un cambio d'area da tastiera il controllo delle aree dinamiche aspetta lo sblocco invece di rimettersi in coda a ogni fotogramma: niente frame clock a vuoto mentre il popup delle aree è a schermo.",
+  "shell-version": ["51"],
+  "version": 1
+}
