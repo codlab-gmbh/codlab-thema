@@ -1,0 +1,7 @@
+{
+  "uuid": "ricerca-azioni@codlab.de",
+  "name": "Recenti e azioni",
+  "description": "Nella ricerca della panoramica: azioni rapide (non disturbare, luce notturna, timer), conversioni ed emoji coi nomi italiani, file recenti. Tutto locale, nessuna rete.",
+  "shell-version": ["51"],
+  "version": 1
+}
