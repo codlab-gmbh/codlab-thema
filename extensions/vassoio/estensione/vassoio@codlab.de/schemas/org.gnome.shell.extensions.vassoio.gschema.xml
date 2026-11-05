@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="vassoio">
+  <schema id="org.gnome.shell.extensions.vassoio" path="/org/gnome/shell/extensions/vassoio/">
+    <key name="ordine" type="as">
+      <default>[]</default>
+      <summary>Ordine delle icone, da sinistra a destra</summary>
+      <description>Chiavi delle icone (sni:Id per le app, il ruolo per le estensioni). Un'icona che non c'è va a sinistra del gruppo ordinato, subito visibile.</description>
+    </key>
+    <key name="nel-menu" type="as">
+      <default>[]</default>
+      <summary>Icone nel menu ⌄ invece che nella barra</summary>
+      <description>Restano raggiungibili: dal menu ⌄ si apre il loro menu vero.</description>
+    </key>
+    <key name="uniforma" type="b">
+      <default>true</default>
+      <summary>Icone a filo</summary>
+      <description>Sostituisce le icone piene note (Tiling Shell, Google Drive, Cardinal Host) con icone simboliche a filo; lo stato resta nel glifo.</description>
+    </key>
+    <key name="doppioni" type="b">
+      <default>true</default>
+      <summary>Togli i doppioni</summary>
+      <description>Lo stesso elemento registrato due volte compare una volta sola.</description>
+    </key>
+    <key name="testimone-mochi" type="b">
+      <default>true</default>
+      <summary>Testimone di Mochi in panoramica</summary>
+      <description>Annota, senza cambiare niente, se Mochi resta fuori dalla panoramica quando la si apre.</description>
+    </key>
+    <key name="posti" type="a{ss}">
+      <default>{}</default>
+      <summary>Dove sta adesso ogni icona (barra, menu, menu-da-sé…), per le preferenze</summary>
+    </key>
+    <key name="visti" type="a{ss}">
+      <default>{}</default>
+      <summary>Icone viste (chiave e nome), per le preferenze</summary>
+    </key>
+  </schema>
+</schemalist>
