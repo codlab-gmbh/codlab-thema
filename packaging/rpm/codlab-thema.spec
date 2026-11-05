@@ -11,6 +11,7 @@ URL:            https://github.com/codlab-gmbh/codlab-thema
 Source0:        %{name}-%{version}.tar.gz
 BuildArch:      noarch
 Packager:       CodLab <info@codlab.de>
+Vendor:         CodLab UG (haftungsbeschränkt)
 BuildRequires:  python3
 BuildRequires:  git-core
 BuildRequires:  glib2

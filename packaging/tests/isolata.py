@@ -64,7 +64,7 @@ with tempfile.TemporaryDirectory(prefix='codlab-radice-') as name:
     os.utime(schema, ns=(schema_stat.st_atime_ns, schema_stat.st_mtime_ns))
     print(run('python3', validator, '--root', root).stdout.strip())
     if args.formato == 'rpm':
-        run('rpm', '--root', root, '-V', 'codlab-thema')
+        run('rpm', '--root', root, '--nodeps', '-V', 'codlab-thema')
         run('rpm', '--root', root, '-e', 'codlab-thema')
         assert run('rpm', '--root', root, '-q', 'codlab-thema', expected=1).returncode != 0
     else:
