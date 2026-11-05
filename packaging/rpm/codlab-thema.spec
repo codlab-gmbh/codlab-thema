@@ -12,6 +12,7 @@ Source0:        %{name}-%{version}.tar.gz
 BuildArch:      noarch
 Packager:       CodLab <info@codlab.de>
 BuildRequires:  python3
+BuildRequires:  git-core
 BuildRequires:  glib2
 Requires:       python3 >= 3.9
 Requires:       python3-gobject-base

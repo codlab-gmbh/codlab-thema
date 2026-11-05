@@ -41,6 +41,8 @@ def source(root):
     require(len(folders) == 10 and len(set(folders)) == 10, 'elenco delle dieci estensioni')
     for folder in folders:
         extension(root / folder, Path(folder).name)
+    for patch in (root / 'nautilus/codlab').glob('*.patch'):
+        subprocess.run(['git', 'apply', '--numstat', str(patch.resolve())], check=True, capture_output=True)
     require('https://www.paypal.com/paypalme/codlabUG' in (root / 'packaging/README.md').read_text(), 'link donazioni')
     require((root / '.github/FUNDING.yml').read_text().strip() ==
             'custom: ["https://www.paypal.com/paypalme/codlabUG"]', 'link FUNDING')

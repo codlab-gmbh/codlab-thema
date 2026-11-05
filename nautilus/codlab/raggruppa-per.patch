@@ -242,6 +242,7 @@ diff -ruN a/src/nautilus-codlab-grouping.c b/src/nautilus-codlab-grouping.c
 +/* CodLab (INC-3 «Nautilus potente»): raggruppa la vista a elenco.
 + * Vedi nautilus-codlab-grouping.h per il disegno.
 + *
++ * SPDX-License-Identifier: GPL-3.0-or-later
 + */
 +
 +#include <glib/gi18n.h>

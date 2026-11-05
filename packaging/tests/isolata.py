@@ -45,17 +45,23 @@ with tempfile.TemporaryDirectory(prefix='codlab-radice-') as name:
     assert not (root / 'home').exists(), 'Scrittura in una casa utente'
     # Il controllo deve diventare rosso per tre guasti indipendenti del payload installato.
     meta = next(root.glob('usr/share/gnome-shell/extensions/*/metadata.json'))
+    meta_stat = meta.stat()
     original = meta.read_bytes(); meta.write_text('{metadata rotto')
     result = run('python3', validator, '--root', root, expected=1)
     print('ROSSO metadata rotto:', result.stderr.strip()); meta.write_bytes(original)
+    os.utime(meta, ns=(meta_stat.st_atime_ns, meta_stat.st_mtime_ns))
     extension = next(root.glob('usr/share/gnome-shell/extensions/*/extension.js'))
+    extension_stat = extension.stat()
     original = extension.read_bytes(); extension.unlink()
     result = run('python3', validator, '--root', root, expected=1)
     print('ROSSO file mancante:', result.stderr.strip()); extension.write_bytes(original)
+    os.utime(extension, ns=(extension_stat.st_atime_ns, extension_stat.st_mtime_ns))
     schema = next(root.glob('usr/share/gnome-shell/extensions/*/schemas/gschemas.compiled'))
+    schema_stat = schema.stat()
     original = schema.read_bytes(); schema.write_bytes(b'rotto')
     result = run('python3', validator, '--root', root, expected=1)
     print('ROSSO schema corrotto:', result.stderr.strip()); schema.write_bytes(original)
+    os.utime(schema, ns=(schema_stat.st_atime_ns, schema_stat.st_mtime_ns))
     print(run('python3', validator, '--root', root).stdout.strip())
     if args.formato == 'rpm':
         run('rpm', '--root', root, '-V', 'codlab-thema')
