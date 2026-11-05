@@ -48,7 +48,7 @@ copy('packaging/deb/copyright', 'usr/share/doc/codlab-thema/copyright')
 for src, dst in [('packaging/man/codlab-thema.1', 'usr/share/man/man1/codlab-thema.1.gz'),
                  ('packaging/deb/changelog', 'usr/share/doc/codlab-thema/changelog.Debian.gz')]:
     target = root / dst; target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(gzip.compress((source / src).read_bytes(), mtime=0))
+    target.write_bytes(gzip.compress((source / src).read_bytes(), compresslevel=9, mtime=0))
 data = root / 'usr/share/codlab-thema'; data.mkdir(parents=True)
 (data / 'extensions.json').write_text(json.dumps(sorted(Path(p).name for p in folders), indent=2)+'\n')
 manifest = {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest()

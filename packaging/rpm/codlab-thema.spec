@@ -21,8 +21,7 @@ Requires:       nautilus >= 51
 Requires:       nautilus < 52
 Requires:       nautilus-python >= 4.0
 Requires:       gtk4 >= 4.24
-Requires:       libadwaita
-Requires:       glib2
+Requires:       /usr/bin/gsettings
 Requires:       systemd
 
 %description
@@ -31,7 +30,7 @@ Activation is explicit for each desktop user with codlab-thema.
 Supports GNOME Shell 51 and Nautilus 51 with GTK 4.24 and Wayland.
 Nautilus binaries, reports and screenshots are excluded.
 
-Free software by CodLab UG (haftungsbeschränkt).
+Free software by CodLab.
 Donations are welcome: https://www.paypal.com/paypalme/codlabUG
 
 %prep
