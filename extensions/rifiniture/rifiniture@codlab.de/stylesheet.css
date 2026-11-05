@@ -1,0 +1,38 @@
+/* Rifiniture (30.10.2026). Nel foglio del tema (Colloid) queste regole PERDONO contro Blur my Shell: provato nella Shell isolata. */
+/* Gli stati ATTIVI pieni col testo bianco a contrasto AA (>= 4,5:1).
+   Blur my Shell 76 (componente popup, stile «dark», classe sul Main.uiGroup) li riempie con -st-accent-color = #3584e4
+   (bianco 3,77:1) e la freccia dei toggle con st-mix(accento, bianco, 85%) = #5396e8 (3,05:1), sotto AA per testo di
+   11 pt. L'accento resta 'blue' (vincolo): cambia solo la TONALITÀ del riempimento, la n. 4 e la n. 5 della tavolozza
+   blu di GNOME (#1c71d8 4,77:1 · #1a5fb4 6,29:1). Freccia e corpo dello stesso colore, divisi dal separatore.
+   Selettori più specifici di quelli di BMS (0,3,0), con !important come i suoi. */
+.bms-popup-background-dark .quick-settings .quick-settings-grid .quick-toggle:checked,
+.bms-popup-background-dark .quick-settings .quick-settings-grid .quick-toggle-has-menu .quick-toggle-menu-button:checked {
+  background-color: #1c71d8 !important;
+  color: #ffffff !important;
+}
+.bms-popup-background-dark .quick-settings .quick-settings-grid .quick-toggle:checked:hover,
+.bms-popup-background-dark .quick-settings .quick-settings-grid .quick-toggle:hover:checked,
+.bms-popup-background-dark .quick-settings .quick-settings-grid .quick-toggle-has-menu .quick-toggle-menu-button:checked:hover {
+  background-color: #1f6fd6 !important;
+  color: #ffffff !important;
+}
+.bms-popup-background-dark .quick-settings .quick-settings-grid .quick-toggle:checked:active,
+.bms-popup-background-dark .quick-settings .quick-settings-grid .quick-toggle:active:checked,
+.bms-popup-background-dark .quick-settings .quick-settings-grid .quick-toggle-has-menu .quick-toggle-menu-button:checked:active {
+  background-color: #1a5fb4 !important;
+  color: #ffffff !important;
+}
+.bms-popup-background-dark .quick-settings .quick-settings-grid .quick-toggle-has-menu:checked .quick-toggle-separator {
+  background-color: rgba(255, 255, 255, 0.28) !important;
+}
+.bms-popup-background-dark .datemenu-popover .calendar .calendar-day.calendar-today,
+.bms-popup-background-dark .datemenu-popover .calendar .calendar-day.calendar-today:selected,
+.bms-popup-background-dark .datemenu-popover .calendar .calendar-day.calendar-today:checked {
+  background-color: #1c71d8 !important;
+  color: #ffffff !important;
+}
+.bms-popup-background-dark .datemenu-popover .calendar .calendar-day.calendar-today:hover,
+.bms-popup-background-dark .datemenu-popover .calendar .calendar-day.calendar-today:focus {
+  background-color: #1f6fd6 !important;
+  color: #ffffff !important;
+}
