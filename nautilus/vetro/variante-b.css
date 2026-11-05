@@ -1,0 +1,41 @@
+/* CodLab vetro per File — variante B: ANCHE la barra del titolo (barra degli strumenti di File e schede) è vetro, come le
+   barre «uniformi e smerigliate» di macOS 27; il contenuto sotto resta pieno. Si aggiunge DOPO comune.css.
+   Il contenuto si prende come in comune.css (giro di chiusura 1, K1): il toolbarview dell'unico «widget» di
+   overlay-split-view senza .sidebar-pane né .overlay-pane, mai «> :first-child», che a barra a comparsa aperta è il gizmo
+   dimming. */
+
+/* il riquadro del contenuto non è più pieno tutto: pieno solo SOTTO la barra */
+window.nautilus-window overlay-split-view > widget:not(.sidebar-pane):not(.overlay-pane) > toolbarview {
+  background-color: transparent;
+}
+window.nautilus-window overlay-split-view > widget:not(.sidebar-pane):not(.overlay-pane) > toolbarview > .top-bar {
+  background-color: color-mix(in srgb, var(--sidebar-bg-color) 74%, transparent);
+  backdrop-filter: blur(24px);
+  box-shadow: inset 0 -1px color-mix(in srgb, currentColor 10%, transparent);
+}
+window.nautilus-window overlay-split-view > widget:not(.sidebar-pane):not(.overlay-pane) > toolbarview > .top-bar:backdrop {
+  background-color: color-mix(in srgb, var(--sidebar-backdrop-color) 78%, transparent);
+}
+window.nautilus-window overlay-split-view > widget:not(.sidebar-pane):not(.overlay-pane) > toolbarview > :not(.top-bar) {
+  background-color: var(--view-bg-color);
+}
+/* contrasto elevato: B torna A, la barra del titolo sul fondo pieno del contenuto come oggi; anche a finestra non a fuoco
+   (K3: le regole :backdrop dentro il ramo) */
+@media (prefers-contrast: more) {
+  window.nautilus-window overlay-split-view > widget:not(.sidebar-pane):not(.overlay-pane) > toolbarview {
+    background-color: var(--view-bg-color);
+  }
+  window.nautilus-window overlay-split-view > widget:not(.sidebar-pane):not(.overlay-pane) > toolbarview > .top-bar,
+  window.nautilus-window overlay-split-view > widget:not(.sidebar-pane):not(.overlay-pane) > toolbarview > .top-bar:backdrop {
+    background-color: transparent;
+    backdrop-filter: none;
+  }
+}
+
+/* I CONTROLLI sopra la barra di vetro restano capsule PIENE, come oggi: misurato nell'isola (01.11, nv-chiaro sola-B) il
+   percorso attenuato («Home», «/», opacità 0,55 di libadwaita) scendeva da 4,81–4,99:1 a 2,68–2,93:1 sulla capsula
+   trasparente (10 % di bianco sopra il vetro). Piena = lo stesso grigio di oggi (10 % di testo sopra il fondo vista). */
+window.nautilus-window overlay-split-view > widget:not(.sidebar-pane):not(.overlay-pane) > toolbarview > .top-bar .nautilus-pathbar,
+window.nautilus-window overlay-split-view > widget:not(.sidebar-pane):not(.overlay-pane) > toolbarview > .top-bar entry {
+  background-color: color-mix(in srgb, currentColor 10%, var(--view-bg-color));
+}

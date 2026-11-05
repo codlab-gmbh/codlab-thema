@@ -1,0 +1,74 @@
+/* CodLab vetro per File (Nautilus 51 · GTK 4.24 · libadwaita 1.10) — parte COMUNE alle varianti.
+   Limitato a window.nautilus-window: nessun'altra app (né i Flatpak sul runtime 50,
+   che leggono lo stesso gtk.css ma non chiedono la sfocatura) diventa trasparente.
+   Meccanismo: GTK 4.24 chiede a Mutter 51 di sfocare ciò che sta DIETRO la finestra (ext-background-effect-v1)
+   dove un backdrop-filter sfoca con raggio >= 20 px; il raggio vero lo decide Mutter (24 px, saturazione 1,25). */
+
+/* 1. La finestra non dipinge più il suo fondo pieno (#1d1d20, classe .view): lo dipingono le parti. */
+window.nautilus-window.view,
+window.nautilus-window.background {
+  background-color: transparent;
+}
+
+/* 2. Il contenuto torna pieno: lo dipinge il SUO toolbarview, preso per struttura.
+      Giro di chiusura 1 (K1): dentro overlay-split-view libadwaita 1.10 crea PRIMA del contenuto quattro gizmo (dimming,
+      shadow, border, outline: adw-overlay-split-view.c 1118, adw-shadow-helper.c 43-55) e dopo uno scudo «widget» senza
+      figli (1131). Quando la barra a comparsa si apre, i gizmo diventano visibili (adw-shadow-helper.c 234-237). GTK conta
+      solo i fratelli visibili (gtkcssselector.c 358-418), quindi il vecchio «> :first-child» passava al gizmo dimming:
+      con A lo riempiva e copriva il contenuto, con B lo svuotava. Non si usa nemmeno .content-pane, che a finestra
+      stretta libadwaita toglie (update_collapsed, 715-740). Il contenuto è l'unico «widget» senza .sidebar-pane né
+      .overlay-pane che contenga un toolbarview. */
+window.nautilus-window overlay-split-view > widget:not(.sidebar-pane):not(.overlay-pane) > toolbarview {
+  background-color: var(--view-bg-color);
+}
+/* il riquadro dei dettagli (Alt+P), fratello della split view, resta pieno */
+window.nautilus-window overlay-split-view ~ * {
+  background-color: var(--view-bg-color);
+}
+
+/* 3. La barra laterale è vetro: tinta della barra laterale al 74 % sopra lo sfondo sfocato da Mutter.
+      74 % = minimo 65 % calcolato perché il testo bianco regga 4,5:1 sopra uno sfondo BIANCO, più margine.
+      Solo la barra laterale FISSA (.sidebar-pane). A finestra stretta libadwaita la rende «a comparsa» (.overlay-pane,
+      fondo pieno --window-bg-color): sopra il contenuto non diventa mai vetro, perché lì dietro non c'è lo sfondo ma il
+      contenuto di File, che Mutter non sfoca. */
+window.nautilus-window overlay-split-view > .sidebar-pane {
+  background-color: color-mix(in srgb, var(--sidebar-bg-color) 74%, transparent);
+  backdrop-filter: blur(24px);
+}
+window.nautilus-window overlay-split-view > .sidebar-pane:backdrop {
+  background-color: color-mix(in srgb, var(--sidebar-backdrop-color) 78%, transparent);
+}
+/* la riga scelta: l'accento SOPRA il vetro (nautilus-estetica.css la dipinge piena col grigio della barra) */
+window.nautilus-window overlay-split-view > .sidebar-pane placessidebar .navigation-sidebar > row:selected {
+  background-color: color-mix(in srgb, var(--accent-bg-color) 22%, transparent);
+}
+
+/* 4. Accessibilità: con «contrasto elevato» niente vetro, tutto pieno come libadwaita. Di solito l'estensione toglie
+      proprio il foglio (codlab-vetro.py, _contrasto_elevato); questo ramo vale se il foglio resta caricato, perché
+      l'estensione collega prefers-contrast del suo provider al sistema come GTK fa con i propri.
+      Giro di chiusura 1 (K3): le regole :backdrop stanno anche QUI. Fuori dal ramo, «.sidebar-pane:backdrop» (0,3,2)
+      batteva «.sidebar-pane» (0,2,2) e lasciava la tinta al 78 % senza sfocatura sulla finestra non a fuoco. */
+@media (prefers-contrast: more) {
+  window.nautilus-window overlay-split-view > .sidebar-pane {
+    background-color: var(--sidebar-bg-color);
+    backdrop-filter: none;
+  }
+  window.nautilus-window overlay-split-view > .sidebar-pane:backdrop {
+    background-color: var(--sidebar-backdrop-color);
+    backdrop-filter: none;
+  }
+  window.nautilus-window overlay-split-view > .sidebar-pane placessidebar .navigation-sidebar > row:selected {
+    background-color: color-mix(in srgb, var(--accent-bg-color) 15%, var(--sidebar-bg-color));
+  }
+}
+
+/* 5. Il percorso attenuato (giro di chiusura 1, F3). Nel tema chiaro libadwaita attenua a 0,55 (dim-label) gli
+      antenati e le barre «/» del percorso, e il testo scende a 3,02:1: è così già oggi, senza vetro. Con il vetro il
+      requisito è assoluto, ogni testo >= 4,5:1. Gli antenati restano più tenui della cartella corrente, ma all'80 %. In
+      contrasto elevato non si tocca niente: decide libadwaita (e di solito il foglio è già tolto). */
+@media (prefers-contrast: no-preference) {
+  window.nautilus-window .nautilus-pathbar .dim-label,
+  window.nautilus-window .nautilus-pathbar .dimmed {
+    opacity: 0.8;
+  }
+}
