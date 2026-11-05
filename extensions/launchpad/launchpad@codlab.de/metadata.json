@@ -1,0 +1,7 @@
+{
+  "uuid": "launchpad@codlab.de",
+  "name": "Launchpad CodLab",
+  "description": "Le app come su macOS: Super (tocco) apre la griglia a tutto schermo sopra lo sfondo sfocato, senza finestre né aree di lavoro, con l'entrata a zoom del Launchpad; si scrive subito per cercare; Esc o un altro Super chiude. La panoramica delle finestre resta all'angolo attivo e alla sua scorciatoia (prototipo).",
+  "shell-version": ["51"],
+  "version": 1
+}
