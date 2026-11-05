@@ -1,0 +1,39 @@
+--- a/src/nautilus-files-view.c
++++ b/src/nautilus-files-view.c
+@@ -3403,6 +3403,36 @@
+ 
+     selection = nautilus_files_view_get_selection (view);
+ 
++    if (selection == NULL)
++    {
++        /* Senza selezione, a monte la barra veniva semplicemente nascosta.
++         * Qui invece dice quanti elementi contiene la cartella aperta, che e'
++         * il conteggio che la vecchia barra di stato mostrava sempre.
++         *
++         * Si conta il modello della vista e non la directory: il modello e'
++         * gia' filtrato, quindi il numero corrisponde a quello che si vede,
++         * file nascosti compresi o esclusi secondo l'impostazione, e ricerche
++         * e filtri inclusi.
++         *
++         * La stringa "%'u item"/"%'u items" esiste gia' nel catalogo di
++         * nautilus (src/nautilus-file.c), quindi la traduzione arriva gratis
++         * in tutte le lingue. */
++        guint n_items = 0;
++        char *count_status;
++
++        if (view->model != NULL)
++        {
++            n_items = g_list_model_get_n_items (G_LIST_MODEL (view->model));
++        }
++
++        count_status = g_strdup_printf (ngettext ("%'u item", "%'u items", n_items),
++                                        n_items);
++        set_floating_bar_status (view, count_status, NULL);
++        g_free (count_status);
++
++        return;
++    }
++
+     folder_item_count_known = TRUE;
+     folder_count = 0;
+     folder_item_count = 0;

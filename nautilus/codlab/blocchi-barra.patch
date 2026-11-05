@@ -1,0 +1,537 @@
+diff --git a/data/org.gnome.nautilus.gschema.xml b/data/org.gnome.nautilus.gschema.xml
+index 3c14aa4..3d654f8 100644
+--- a/data/org.gnome.nautilus.gschema.xml
++++ b/data/org.gnome.nautilus.gschema.xml
+@@ -77,6 +77,21 @@
+   </schema>
+ 
+   <schema path="/org/gnome/nautilus/preferences/" id="org.gnome.nautilus.preferences" gettext-domain="nautilus">
++    <key name="sidebar-disks-expanded" type="b">
++      <default>true</default>
++      <summary>Whether the disks group in the sidebar is expanded</summary>
++      <description>Hide or reveal disk rows without changing mounts or the current folder.</description>
++    </key>
++    <key name="sidebar-work-expanded" type="b">
++      <default>true</default>
++      <summary>Whether the work bookmarks group in the sidebar is expanded</summary>
++      <description>Hide or reveal work bookmarks without changing their stored order or paths.</description>
++    </key>
++    <key name="sidebar-plex-expanded" type="b">
++      <default>true</default>
++      <summary>Whether the Plex group in the sidebar is expanded</summary>
++      <description>Hide or reveal media roots independently of disks and personal bookmarks.</description>
++    </key>
+     <key type="b" name="always-use-location-entry">
+       <default>false</default>
+       <summary>Always use the location entry, instead of the pathbar</summary>
+diff --git a/po/it.po b/po/it.po
+index 7e75e44..09142ee 100644
+--- a/po/it.po
++++ b/po/it.po
+@@ -6571,3 +6571,34 @@ msgstr "Esce"
+ 
+ #~ msgid "Computer"
+ #~ msgstr "Computer"
++
++#: src/nautilus-sidebar.c
++msgid "Disks"
++msgstr "Dischi"
++
++#: src/nautilus-sidebar.c
++msgid "Show or hide disks"
++msgstr "Mostra o nascondi i dischi"
++
++#: src/nautilus-sidebar.c
++msgid "_Disks"
++msgstr "_Dischi"
++
++#: src/nautilus-sidebar.c
++msgid "Show or hide Plex folders (Alt+P)"
++msgstr "Mostra o nascondi le cartelle Plex (Alt+P)"
++
++msgid "Show or hide disks (Alt+D)"
++msgstr "Mostra o nascondi i dischi (Alt+D)"
++
++#: src/nautilus-sidebar.c
++msgid "Work"
++msgstr "Lavoro"
++
++#: src/nautilus-sidebar.c
++msgid "_Work"
++msgstr "_Lavoro"
++
++#: src/nautilus-sidebar.c
++msgid "Show or hide work bookmarks (Alt+L)"
++msgstr "Mostra o nascondi i segnalibri di lavoro (Alt+L)"
+diff --git a/src/nautilus-enums.h b/src/nautilus-enums.h
+index 921c74b..3e2cca1 100644
+--- a/src/nautilus-enums.h
++++ b/src/nautilus-enums.h
+@@ -114,6 +114,7 @@ typedef enum {
+   NAUTILUS_SIDEBAR_ROW_NEW_BOOKMARK,
+   NAUTILUS_SIDEBAR_ROW_BOOKMARK,
+   NAUTILUS_SIDEBAR_ROW_BOOKMARK_PLACEHOLDER,
++  NAUTILUS_SIDEBAR_ROW_GROUP,
+   NAUTILUS_SIDEBAR_N_ROW_TYPES
+ } NautilusSidebarRowType;
+ 
+@@ -121,9 +122,10 @@ typedef enum {
+ typedef enum {
+   NAUTILUS_SIDEBAR_SECTION_INVALID = 0,
+   NAUTILUS_SIDEBAR_SECTION_DEFAULT_LOCATIONS,
++  NAUTILUS_SIDEBAR_SECTION_MOUNTS,
+   NAUTILUS_SIDEBAR_SECTION_BOOKMARKS,
++  NAUTILUS_SIDEBAR_SECTION_PLEX,
+   NAUTILUS_SIDEBAR_SECTION_CLOUD,
+-  NAUTILUS_SIDEBAR_SECTION_MOUNTS,
+   NAUTILUS_SIDEBAR_N_SECTION_TYPES
+ } NautilusSidebarSectionType;
+ 
+diff --git a/src/nautilus-sidebar.c b/src/nautilus-sidebar.c
+index cc7e9ed..228cf8a 100644
+--- a/src/nautilus-sidebar.c
++++ b/src/nautilus-sidebar.c
+@@ -110,6 +110,14 @@ struct _NautilusSidebar
+ 
+     NautilusBookmarkList *bookmark_list;
+ 
++    GFileMonitor *plex_monitor;
++    GtkWidget *disks_toggle;
++    gboolean disks_expanded;
++    GtkWidget *work_toggle;
++    gboolean work_expanded;
++    GtkWidget *plex_toggle;
++    gboolean plex_expanded;
++
+     GActionGroup *row_actions;
+ 
+ #ifdef HAVE_CLOUDPROVIDERS
+@@ -443,6 +451,233 @@ add_place (NautilusSidebar           *sidebar,
+     return row;
+ }
+ 
++/* Local sidebar groups: no Plex service calls or bookmark-file changes here. */
++static void
++update_group_visibility (NautilusSidebar *self)
++{
++    for (GtkWidget *row = gtk_widget_get_first_child (self->list_box); row != NULL;
++         row = gtk_widget_get_next_sibling (row))
++    {
++        NautilusSidebarSectionType section;
++        NautilusSidebarRowType type;
++
++        if (!NAUTILUS_IS_SIDEBAR_ROW (row))
++        {
++            continue;
++        }
++        g_object_get (row, "section-type", &section, "place-type", &type, NULL);
++        if (section == NAUTILUS_SIDEBAR_SECTION_MOUNTS &&
++            type != NAUTILUS_SIDEBAR_ROW_GROUP)
++        {
++            /* Use widget visibility for both native layout and accessibility. */
++            gtk_widget_set_visible (row, self->disks_expanded);
++        }
++        else if (section == NAUTILUS_SIDEBAR_SECTION_BOOKMARKS &&
++                 type != NAUTILUS_SIDEBAR_ROW_GROUP &&
++                 type != NAUTILUS_SIDEBAR_ROW_NEW_BOOKMARK)
++        {
++            gtk_widget_set_visible (row, self->work_expanded);
++        }
++        else if (section == NAUTILUS_SIDEBAR_SECTION_PLEX &&
++                 type != NAUTILUS_SIDEBAR_ROW_GROUP)
++        {
++            gtk_widget_set_visible (row, self->plex_expanded);
++        }
++    }
++}
++
++static void
++update_group_expanded (NautilusSidebar *self,
++                       GtkWidget       *toggle,
++                       gboolean         expanded)
++{
++    if (toggle != NULL)
++    {
++        GtkWidget *box = gtk_button_get_child (GTK_BUTTON (toggle));
++        GtkWidget *arrow = gtk_widget_get_last_child (box);
++
++        gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (toggle), expanded);
++        gtk_image_set_from_icon_name (GTK_IMAGE (arrow), expanded ?
++                                      "pan-down-symbolic" : "pan-end-symbolic");
++        gtk_accessible_update_state (GTK_ACCESSIBLE (toggle),
++                                     GTK_ACCESSIBLE_STATE_EXPANDED,
++                                     expanded, -1);
++    }
++    update_group_visibility (self);
++    /* Hiding rows never changes the viewed path. Restore its highlight on reveal. */
++    if (self->current_location != NULL)
++    {
++        nautilus_sidebar_set_location (self, self->current_location);
++    }
++}
++
++static void
++update_disks_expanded (NautilusSidebar *self)
++{
++    self->disks_expanded = g_settings_get_boolean (nautilus_preferences,
++                                                   "sidebar-disks-expanded");
++    update_group_expanded (self, self->disks_toggle, self->disks_expanded);
++}
++
++static void
++update_work_expanded (NautilusSidebar *self)
++{
++    self->work_expanded = g_settings_get_boolean (nautilus_preferences,
++                                                 "sidebar-work-expanded");
++    update_group_expanded (self, self->work_toggle, self->work_expanded);
++}
++
++static void
++update_plex_expanded (NautilusSidebar *self)
++{
++    self->plex_expanded = g_settings_get_boolean (nautilus_preferences,
++                                                  "sidebar-plex-expanded");
++    update_group_expanded (self, self->plex_toggle, self->plex_expanded);
++}
++
++static void
++group_toggled (GtkToggleButton *button,
++               NautilusSidebar *self)
++{
++    gboolean expanded = gtk_toggle_button_get_active (button);
++    const char *key = g_object_get_data (G_OBJECT (button), "expanded-key");
++
++    if (expanded != g_settings_get_boolean (nautilus_preferences, key))
++    {
++        g_settings_set_boolean (nautilus_preferences, key, expanded);
++    }
++}
++
++static void
++add_sidebar_group (NautilusSidebar            *self,
++                   NautilusSidebarSectionType  section,
++                   const char                 *title,
++                   gboolean                    collapsible)
++{
++    GtkWidget *row = g_object_new (NAUTILUS_TYPE_SIDEBAR_ROW,
++                                   "sidebar", self,
++                                   "label", title,
++                                   "section-type", section,
++                                   "place-type", NAUTILUS_SIDEBAR_ROW_GROUP,
++                                   NULL);
++    GtkWidget *template_child = gtk_list_box_row_get_child (GTK_LIST_BOX_ROW (row));
++    GtkWidget *container = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
++    GtkWidget *box = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 8);
++    GtkWidget *label = gtk_label_new (title);
++
++    g_object_ref (template_child);
++    gtk_list_box_row_set_child (GTK_LIST_BOX_ROW (row), NULL);
++    gtk_box_append (GTK_BOX (container), template_child);
++    g_object_unref (template_child);
++    gtk_widget_set_visible (template_child, FALSE);
++    gtk_list_box_row_set_child (GTK_LIST_BOX_ROW (row), container);
++    gtk_list_box_row_set_selectable (GTK_LIST_BOX_ROW (row), FALSE);
++    gtk_list_box_row_set_activatable (GTK_LIST_BOX_ROW (row), FALSE);
++    gtk_widget_set_focusable (row, FALSE);
++    gtk_widget_add_css_class (label, "heading");
++    gtk_widget_set_hexpand (label, TRUE);
++    gtk_label_set_xalign (GTK_LABEL (label), 0);
++    gtk_box_append (GTK_BOX (box), label);
++
++    if (collapsible)
++    {
++        gboolean plex = section == NAUTILUS_SIDEBAR_SECTION_PLEX;
++        gboolean work = section == NAUTILUS_SIDEBAR_SECTION_BOOKMARKS;
++        gboolean expanded = plex ? self->plex_expanded :
++                            work ? self->work_expanded : self->disks_expanded;
++        GtkWidget *button = gtk_toggle_button_new ();
++        GtkWidget *arrow = gtk_image_new_from_icon_name (expanded ?
++                                                        "pan-down-symbolic" : "pan-end-symbolic");
++
++        gtk_label_set_text_with_mnemonic (GTK_LABEL (label), plex ? "_Plex" : work ? _("_Work") : _("_Disks"));
++        gtk_label_set_mnemonic_widget (GTK_LABEL (label), button);
++        gtk_box_append (GTK_BOX (box), arrow);
++        gtk_button_set_child (GTK_BUTTON (button), box);
++        gtk_widget_add_css_class (button, "flat");
++        gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (button), expanded);
++        gtk_accessible_update_property (GTK_ACCESSIBLE (button),
++                                         GTK_ACCESSIBLE_PROPERTY_LABEL, title, -1);
++        gtk_accessible_update_state (GTK_ACCESSIBLE (button),
++                                     GTK_ACCESSIBLE_STATE_EXPANDED, expanded, -1);
++        gtk_widget_set_tooltip_text (button, plex ? _("Show or hide Plex folders (Alt+P)") :
++                                     work ? _("Show or hide work bookmarks (Alt+L)") :
++                                     _("Show or hide disks (Alt+D)"));
++        g_object_set_data (G_OBJECT (button), "expanded-key",
++                           plex ? "sidebar-plex-expanded" : work ? "sidebar-work-expanded" : "sidebar-disks-expanded");
++        g_signal_connect (button, "toggled", G_CALLBACK (group_toggled), self);
++        gtk_box_append (GTK_BOX (container), button);
++        if (plex)
++        {
++            self->plex_toggle = button;
++        }
++        else if (work)
++        {
++            self->work_toggle = button;
++        }
++        else
++        {
++            self->disks_toggle = button;
++        }
++    }
++    else
++    {
++        gtk_widget_set_margin_start (box, 12);
++        gtk_widget_set_margin_end (box, 12);
++        gtk_widget_set_margin_top (box, 8);
++        gtk_widget_set_margin_bottom (box, 4);
++        gtk_box_append (GTK_BOX (container), box);
++    }
++    gtk_list_box_insert (GTK_LIST_BOX (self->list_box), row, -1);
++}
++
++static GHashTable *
++add_plex_places (NautilusSidebar *self)
++{
++    g_autofree char *filename = g_build_filename (g_get_user_config_dir (), "nautilus-codlab",
++                                                 "barra.ini", NULL);
++    g_autoptr (GKeyFile) config = g_key_file_new ();
++    g_auto (GStrv) groups = NULL;
++    GHashTable *locations = g_hash_table_new_full (g_file_hash, (GEqualFunc) g_file_equal,
++                                                  g_object_unref, NULL);
++
++    if (!g_key_file_load_from_file (config, filename, G_KEY_FILE_NONE, NULL))
++    {
++        return locations;
++    }
++    groups = g_key_file_get_groups (config, NULL);
++    for (guint i = 0; groups[i] != NULL && i < 64; i++)
++    {
++        g_autofree char *name = g_key_file_get_string (config, groups[i], "Name", NULL);
++        g_autofree char *uri = g_key_file_get_string (config, groups[i], "Uri", NULL);
++        g_autofree char *icon_name = g_key_file_get_string (config, groups[i], "Icon", NULL);
++        g_autoptr (GFile) location = NULL;
++        g_autoptr (GIcon) icon = NULL;
++        g_autofree char *path = NULL;
++
++        if (name == NULL || *name == '\0' || strpbrk (name, "\r\n") != NULL ||
++            uri == NULL || !g_str_has_prefix (uri, "file:///"))
++        {
++            continue;
++        }
++        location = g_file_new_for_uri (uri);
++        if (!g_file_is_native (location) || g_hash_table_contains (locations, location))
++        {
++            continue;
++        }
++        if (g_hash_table_size (locations) == 0)
++        {
++            add_sidebar_group (self, NAUTILUS_SIDEBAR_SECTION_PLEX, "Plex", TRUE);
++        }
++        path = g_file_get_path (location);
++        icon = g_themed_icon_new (icon_name != NULL && *icon_name != '\0' ?
++                                 icon_name : "folder-videos");
++        add_place (self, NAUTILUS_SIDEBAR_ROW_BUILT_IN, NAUTILUS_SIDEBAR_SECTION_PLEX,
++                   name, icon, NULL, uri, NULL, NULL, NULL, NULL, i, path);
++        g_hash_table_add (locations, g_steal_pointer (&location));
++    }
++    return locations;
++}
++
+ static gboolean
+ recent_files_setting_is_enabled (NautilusSidebar *sidebar)
+ {
+@@ -678,6 +913,10 @@ update_places (NautilusSidebar *sidebar)
+         original_uri = NULL;
+     }
+ 
++    sidebar->disks_toggle = NULL;
++    sidebar->plex_toggle = NULL;
++    sidebar->work_toggle = NULL;
++
+     /* Reset drag state, just in case we update the places while dragging or
+      * ending a drag */
+     stop_drop_feedback (sidebar);
+@@ -1012,6 +1251,13 @@ update_places (NautilusSidebar *sidebar)
+     }
+     g_list_free (mounts);
+ 
++    /* Section enum keeps disks, work bookmarks and Plex in that order. */
++    g_autoptr (GHashTable) plex_locations = add_plex_places (sidebar);
++
++    add_sidebar_group (sidebar, NAUTILUS_SIDEBAR_SECTION_MOUNTS, _("Disks"), TRUE);
++
++    add_sidebar_group (sidebar, NAUTILUS_SIDEBAR_SECTION_BOOKMARKS, _("Work"), TRUE);
++
+     /* add bookmarks */
+     bookmarks = nautilus_bookmark_list_get_all (sidebar->bookmark_list);
+     /* Needs to start from 1 so that bookmark drag placeholder can come first. */
+@@ -1024,6 +1270,13 @@ update_places (NautilusSidebar *sidebar)
+         GFile *location = nautilus_bookmark_get_location (l->data);
+         g_autofree char *mount_uri = nautilus_bookmark_get_uri (l->data);
+ 
++        /* Move duplicate links visually into Plex; never rewrite the bookmarks. */
++        if (g_hash_table_contains (plex_locations, location))
++        {
++            index++;
++            continue;
++        }
++
+         gboolean is_native = g_file_is_native (location);
+         tooltip = is_native ? g_file_get_path (location) : g_uri_unescape_string (mount_uri, NULL);
+ 
+@@ -1105,6 +1358,8 @@ update_places (NautilusSidebar *sidebar)
+     /* We want this hidden by default, but need to do it after the show_all call */
+     nautilus_sidebar_row_hide (NAUTILUS_SIDEBAR_ROW (sidebar->new_bookmark_row), TRUE);
+ 
++    update_group_visibility (sidebar);
++
+     /* restore original selection */
+     if (original_uri)
+     {
+@@ -1115,6 +1370,26 @@ update_places (NautilusSidebar *sidebar)
+         g_object_unref (restore);
+         g_free (original_uri);
+     }
++    else if (sidebar->current_location != NULL)
++    {
++        nautilus_sidebar_set_location (sidebar, sidebar->current_location);
++    }
++}
++
++static void
++plex_config_changed (GFileMonitor      *monitor,
++                     GFile             *file,
++                     GFile             *other_file,
++                     GFileMonitorEvent  event,
++                     NautilusSidebar   *self)
++{
++    if (event == G_FILE_MONITOR_EVENT_CHANGES_DONE_HINT ||
++        event == G_FILE_MONITOR_EVENT_CREATED || event == G_FILE_MONITOR_EVENT_DELETED ||
++        event == G_FILE_MONITOR_EVENT_RENAMED || event == G_FILE_MONITOR_EVENT_MOVED_IN ||
++        event == G_FILE_MONITOR_EVENT_MOVED_OUT)
++    {
++        update_places (self);
++    }
+ }
+ 
+ void
+@@ -2675,6 +2950,52 @@ on_key_pressed (GtkEventControllerKey *controller,
+ {
+     guint modifiers;
+     GtkListBoxRow *row;
++    GtkWidget *focus = gtk_root_get_focus (gtk_widget_get_root (GTK_WIDGET (sidebar)));
++
++    if ((sidebar->disks_toggle != NULL &&
++        (focus == sidebar->disks_toggle ||
++         (focus != NULL && gtk_widget_is_ancestor (focus, sidebar->disks_toggle)))) ||
++        (sidebar->work_toggle != NULL &&
++         (focus == sidebar->work_toggle ||
++          (focus != NULL && gtk_widget_is_ancestor (focus, sidebar->work_toggle)))) ||
++        (sidebar->plex_toggle != NULL &&
++         (focus == sidebar->plex_toggle ||
++          (focus != NULL && gtk_widget_is_ancestor (focus, sidebar->plex_toggle)))))
++    {
++        /* A group button is inside a non-selectable row. Move explicitly to
++         * the adjacent visible row instead of trapping keyboard navigation. */
++        if ((state & gtk_accelerator_get_default_mod_mask ()) == 0 &&
++            (keyval == GDK_KEY_Down || keyval == GDK_KEY_Up))
++        {
++            gboolean forward = keyval == GDK_KEY_Down;
++            GtkWidget *group = gtk_widget_get_ancestor (focus, NAUTILUS_TYPE_SIDEBAR_ROW);
++            GtkWidget *next = forward ? gtk_widget_get_next_sibling (group) :
++                                       gtk_widget_get_prev_sibling (group);
++
++            for (; next != NULL;
++                 next = forward ? gtk_widget_get_next_sibling (next) :
++                                  gtk_widget_get_prev_sibling (next))
++            {
++                NautilusSidebarRowType type;
++
++                if (!NAUTILUS_IS_SIDEBAR_ROW (next) || !gtk_widget_get_visible (next))
++                {
++                    continue;
++                }
++                g_object_get (next, "place-type", &type, NULL);
++                if (type == NAUTILUS_SIDEBAR_ROW_GROUP)
++                {
++                    GtkWidget *container = gtk_list_box_row_get_child (GTK_LIST_BOX_ROW (next));
++                    GtkWidget *button = gtk_widget_get_last_child (container);
++
++                    return gtk_widget_grab_focus (button);
++                }
++                gtk_list_box_select_row (GTK_LIST_BOX (sidebar->list_box), GTK_LIST_BOX_ROW (next));
++                return gtk_widget_grab_focus (next);
++            }
++        }
++        return FALSE;
++    }
+ 
+     row = gtk_list_box_get_selected_row (GTK_LIST_BOX (sidebar->list_box));
+     if (row)
+@@ -3417,6 +3738,13 @@ list_box_sort_func (GtkListBoxRow *row1,
+         place_type_2 = NAUTILUS_SIDEBAR_ROW_BOOKMARK;
+     }
+ 
++    if (place_type_1 == NAUTILUS_SIDEBAR_ROW_GROUP ||
++        place_type_2 == NAUTILUS_SIDEBAR_ROW_GROUP)
++    {
++        return (place_type_2 == NAUTILUS_SIDEBAR_ROW_GROUP) -
++               (place_type_1 == NAUTILUS_SIDEBAR_ROW_GROUP);
++    }
++
+     if (place_type_1 != place_type_2)
+     {
+         return place_type_1 - place_type_2;
+@@ -3572,6 +3900,12 @@ nautilus_sidebar_init (NautilusSidebar *sidebar)
+     GtkEventController *controller;
+     GtkGesture *gesture;
+ 
++    sidebar->disks_expanded = g_settings_get_boolean (nautilus_preferences,
++                                                      "sidebar-disks-expanded");
++    sidebar->work_expanded = g_settings_get_boolean (nautilus_preferences,
++                                                     "sidebar-work-expanded");
++    sidebar->plex_expanded = g_settings_get_boolean (nautilus_preferences,
++                                                     "sidebar-plex-expanded");
+     create_volume_monitor (sidebar);
+ 
+     sidebar->slot_signal_group = g_signal_group_new (NAUTILUS_TYPE_WINDOW_SLOT);
+@@ -3675,6 +4009,21 @@ nautilus_sidebar_init (NautilusSidebar *sidebar)
+ 
+     sidebar->show_trash = TRUE;
+ 
++    g_signal_connect_object (nautilus_preferences, "changed::sidebar-disks-expanded",
++                             G_CALLBACK (update_disks_expanded), sidebar, G_CONNECT_SWAPPED);
++    g_signal_connect_object (nautilus_preferences, "changed::sidebar-work-expanded",
++                             G_CALLBACK (update_work_expanded), sidebar, G_CONNECT_SWAPPED);
++    g_signal_connect_object (nautilus_preferences, "changed::sidebar-plex-expanded",
++                             G_CALLBACK (update_plex_expanded), sidebar, G_CONNECT_SWAPPED);
++    g_autofree char *plex_path = g_build_filename (g_get_user_config_dir (), "nautilus-codlab",
++                                                  "barra.ini", NULL);
++    g_autoptr (GFile) plex_file = g_file_new_for_path (plex_path);
++    sidebar->plex_monitor = g_file_monitor_file (plex_file, G_FILE_MONITOR_NONE, NULL, NULL);
++    if (sidebar->plex_monitor != NULL)
++    {
++        g_signal_connect (sidebar->plex_monitor, "changed", G_CALLBACK (plex_config_changed), sidebar);
++    }
++
+     /* populate the sidebar */
+     update_places (sidebar);
+ 
+@@ -3770,6 +4119,7 @@ nautilus_sidebar_dispose (GObject *object)
+ 
+     sidebar = NAUTILUS_PLACES_SIDEBAR (object);
+ 
++    g_clear_object (&sidebar->plex_monitor);
+     g_clear_object (&sidebar->window_slot);
+     g_clear_object (&sidebar->slot_signal_group);
+ 
+@@ -4159,7 +4509,8 @@ nautilus_sidebar_set_location (NautilusSidebar *sidebar,
+          row != NULL && !found;
+          row = gtk_widget_get_next_sibling (row))
+     {
+-        if (!GTK_IS_LIST_BOX_ROW (row))
++        if (!GTK_IS_LIST_BOX_ROW (row) ||
++            !gtk_widget_get_visible (row) || !gtk_widget_get_child_visible (row))
+         {
+             continue;
+         }

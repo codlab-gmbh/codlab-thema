@@ -1,0 +1,32 @@
+{
+ "serie": "INC-4a «Configura i gruppi» (configura-barra della 1.10.1, strumenti 00cdb83, con la cura del puntatore alla riga distrutta; dal 03.11 sera senza «Cambia icona», «Sposta su» e «Sposta giù», spenti per INC-4b; dal 04.11 senza perdite di dati: barra.ini caricato per intero e scritto sul posto, scritture che perderebbero dati rifiutate) sopra la serie 1.9 su 51.1",
+ "codlab_rel": "4",
+ "patch": [
+  "barra-conteggio-elementi.patch",
+  "icona-segnalibri.patch",
+  "blocchi-barra.patch",
+  "estetica-barra.patch",
+  "ricerca-solo-qui.patch",
+  "riquadro-dettagli.patch",
+  "raggruppa-per.patch",
+  "configura-barra.patch"
+ ],
+ "file_in_piu": [
+  {
+   "dopo": "%{_datadir}/glib-2.0/schemas/org.gnome.nautilus.gschema.xml",
+   "file": "%{_datadir}/glib-2.0/schemas/org.gnome.nautilus.codlab.gschema.xml"
+  }
+ ],
+ "marcatori": [
+  "metadata::custom-icon-name",
+  "sidebar-plex-expanded",
+  "codlab-space-bar",
+  "ricerca-solo-qui",
+  "riquadro-dettagli",
+  "raggruppa-per",
+  "gruppi-personalizzati"
+ ],
+ "senza_marcatore": {
+  "barra-conteggio-elementi.patch": "riusa di proposito la stringa di nautilus \"%'u item\"/\"%'u items\" (gia' nel binario di Fedora): la sua presenza la prova l'applicazione della patch (%autosetup -p1, fuzz 0) e la prova GUI del conteggio"
+ }
+}

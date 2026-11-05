@@ -1,0 +1,1126 @@
+CodLab (incremento 3 «Nautilus potente»): Raggruppa per nella vista a elenco.
+
+Explorer ha «Raggruppa per» (tipo, data, dimensione) con righe di
+intestazione fra i gruppi; Nautilus 51 non ha niente di simile e Finder
+nemmeno. GTK 4.12+ pero' ha GIA' le sezioni nelle liste: GtkSectionModel,
+il section sorter di GtkSortListModel e l'header factory di GtkColumnView.
+NautilusViewModel espone gia' nautilus_view_model_set_section_sorter() e
+implementa l'interfaccia: questa patch aggiunge solo la scelta del gruppo
+(di che gruppo e' un file), l'ordinamento che tiene i gruppi contigui, le
+intestazioni tradotte, il menu e la chiave. Nessuna riga fabbricata dentro
+il modello (con GtkTreeListRow sarebbe stato fragile), nessuna dipendenza
+nuova.
+
+Cosa fa, come Explorer:
+
+  * menu «Raggruppa per» nelle Opzioni vista della vista a elenco:
+    Nessuno / Tipo / Data di modifica / Dimensione (radio sulla chiave
+    org.gnome.nautilus.codlab:raggruppa-per, default 'nessuno');
+  * tipo: Cartelle / Immagini / Video / Documenti / Audio / Altro
+    (le Cartelle hanno il loro gruppo, come Explorer: con le cartelle in
+    testa finirebbero tutte in «Altro» e si perderebbero);
+  * data di modifica: Oggi / Ieri / Ultima settimana / Ultimo mese /
+    Più vecchi (a mezzanotte locale del file);
+  * dimensione: Grande (>= 100 MiB) / Media (>= 1 MiB) / Piccola;
+  * righe di intestazione in grassetto fra i gruppi (header factory delle
+    sezioni), ordinamento DENTRO ogni gruppo invariato: resta quello delle
+    colonne (nome, data, dimensione...), cliccabile come sempre;
+  * con il raggruppamento attivo l'espansione ad albero della vista resta
+    spenta: i figli espansi resterebbero incollati al padre e le sezioni si
+    spezzerebbero (Explorer raggruppa solo a livello piano). Torna da sola
+    quando il raggruppamento torna a «Nessuno».
+
+Il disegno (le lezioni di INC-1/INC-2 sono dentro):
+
+  * il sorter del gruppo sta anche nella catena principale, PRIMA di
+    quello cartelle-prima. Scoperta misurata col mutante «gruppo mai in
+    testa»: in GTK 4.12+ il SECTION SORTER e' esso stesso una chiave di
+    ordinamento PRIMARIA («ordina tutto col section sorter, il sorter
+    principale ordina dentro le sezioni», gir di GtkSortListModel) —
+    quindi le sezioni restano contigue comunque. Il gruppo in testa alla
+    catena resta come cintura E BRETELLE: rende l'ordine esplicito e
+    indipendente da cambiamenti futuri della semantica GTK. Catena:
+    [gruppo, cartelle-prima, ordinamento colonne];
+  * due sorter separati: uno sui NautilusViewItem (ordina) e uno sui
+    GtkTreeListRow (solo confini delle sezioni);
+  * lookup e has_key dello schema prima di OGNI accesso alla chiave nuova
+    (nautilus_codlab_preferences_get_raggruppa_per /
+    _has_raggruppa_per): un binario 1.9 davanti a uno schema 1.8.1 tiene
+    riquadro e ricerca attivi (quelle due chiavi ci sono) e lascia il
+    raggruppamento SPENTO, mai un GLib-GIO-ERROR. L'istanza GSettings non
+    nasce se lo schema manca del tutto: Nautilus parte lo stesso;
+  * l'azione view.raggruppa-per accetta SOLO i quattro valori noti e la
+    voce di menu e' hidden-when action-disabled fuori dalla vista a elenco
+    o senza chiave: il menu non offre cio' che abortirebbe;
+  * file senza metadati (mtime 0, mime NULL, item NULL) finiscono
+    nell'ULTIMO gruppo: nessun deref;
+  * traduzioni in po/it.po TUTTE con msgctxt («menu item» / «group
+    heading»): nessuna collisione con gli msgid di serie;
+  * la factory degli header non ha callback dal template: setup/bind in C,
+    zero Gtk-CRITICAL per costruzione.
+
+I filtri per colonna (popover con i valori distinti) NON sono in questo
+incremento: dichiarati incremento successivo, l'incremento resta piccolo
+(regola dei cicli).
+diff -ruN a/data/org.gnome.nautilus.codlab.gschema.xml b/data/org.gnome.nautilus.codlab.gschema.xml
+--- a/data/org.gnome.nautilus.codlab.gschema.xml	2026-11-01 00:13:25.311635511 +0100
++++ b/data/org.gnome.nautilus.codlab.gschema.xml	2026-11-01 07:09:21.625094911 +0100
+@@ -20,5 +20,23 @@
+       the Explorer “Details pane” (Alt+P) and the Finder preview
+       column. Toggled by the Alt+P accelerator and the menu item.</description>
+     </key>
++    <!-- CodLab (INC-3): raggruppamento della vista a elenco, come
++         «Raggruppa per» di Explorer. nessuno (default) = nessun
++         raggruppamento, ordine di sempre; tipo = Cartelle/Immagini/Video/
++         Documenti/Audio/Altro; data = Oggi/Ieri/Ultima settimana/Ultimo
++         mese/Più vecchi (data di modifica); dimensione = Grande (>=100 MiB),
++         Media (>=1 MiB), Piccola. Il menu della vista («Opzioni vista»)
++         scrive la chiave; un valore sconosciuto vale nessuno. -->
++    <key type="s" name="raggruppa-per">
++      <default>'nessuno'</default>
++      <summary>Group the list view by</summary>
++      <description>Grouping of the list view rows under section headers,
++      like the Explorer “Group by” menu. One of “nessuno” (no grouping,
++      default), “tipo” (Folders/Images/Videos/Documents/Audio/Other),
++      “data” (Today/Yesterday/Last week/Last month/Older, by modification
++      time) or “dimensione” (Large/Medium/Small). Unknown values fall
++      back to “nessuno”. While grouping is active the tree expansion of
++      the list view is disabled.</description>
++    </key>
+   </schema>
+ </schemalist>
+diff -ruN a/po/it.po b/po/it.po
+--- a/po/it.po	2026-11-01 00:13:52.489701399 +0100
++++ b/po/it.po	2026-11-01 08:12:16.098629197 +0100
+@@ -5579,6 +5579,117 @@
+ msgid "Sort"
+ msgstr "Ordina"
+ 
++# CodLab (INC-3 «Nautilus potente», 01.11.2026): «Raggruppa per» della
++# vista a elenco. Contesti "menu item" e "group heading" su TUTTE le
++# stringhe nuove: niente collisioni con gli msgid di serie.
++#. Translators: CodLab: no grouping in the "Group By" options of the list view.
++#: src/resources/ui/nautilus-view-controls.blp:28
++msgctxt "menu item"
++msgid "Group By: None"
++msgstr "Raggruppa per: Nessuno"
++
++#. Translators: CodLab: group the list view by file type.
++#: src/resources/ui/nautilus-view-controls.blp:34
++msgctxt "menu item"
++msgid "Group By: Type"
++msgstr "Raggruppa per: Tipo"
++
++#. Translators: CodLab: group the list view by modification date.
++#: src/resources/ui/nautilus-view-controls.blp:40
++msgctxt "menu item"
++msgid "Group By: Date Modified"
++msgstr "Raggruppa per: Data di modifica"
++
++#. Translators: CodLab: group the list view by file size.
++#: src/resources/ui/nautilus-view-controls.blp:46
++msgctxt "menu item"
++msgid "Group By: Size"
++msgstr "Raggruppa per: Dimensione"
++
++#. Translators: CodLab: section header of a group of files in the list view, grouped by file type.
++#: src/nautilus-codlab-grouping.c
++msgctxt "group heading"
++msgid "Folders"
++msgstr "Cartelle"
++
++#. Translators: CodLab: section header of a group of files in the list view, grouped by file type.
++#: src/nautilus-codlab-grouping.c
++msgctxt "group heading"
++msgid "Images"
++msgstr "Immagini"
++
++#. Translators: CodLab: section header of a group of files in the list view, grouped by file type.
++#: src/nautilus-codlab-grouping.c
++msgctxt "group heading"
++msgid "Videos"
++msgstr "Video"
++
++#. Translators: CodLab: section header of a group of files in the list view, grouped by file type.
++#: src/nautilus-codlab-grouping.c
++msgctxt "group heading"
++msgid "Documents"
++msgstr "Documenti"
++
++#. Translators: CodLab: section header of a group of files in the list view, grouped by file type.
++#: src/nautilus-codlab-grouping.c
++msgctxt "group heading"
++msgid "Audio"
++msgstr "Audio"
++
++#. Translators: CodLab: section header of a group of files in the list view, grouped by file type.
++#: src/nautilus-codlab-grouping.c
++msgctxt "group heading"
++msgid "Other"
++msgstr "Altro"
++
++#. Translators: CodLab: section header of a group of files in the list view, grouped by modification date.
++#: src/nautilus-codlab-grouping.c
++msgctxt "group heading"
++msgid "Today"
++msgstr "Oggi"
++
++#. Translators: CodLab: section header of a group of files in the list view, grouped by modification date.
++#: src/nautilus-codlab-grouping.c
++msgctxt "group heading"
++msgid "Yesterday"
++msgstr "Ieri"
++
++#. Translators: CodLab: section header of a group of files in the list view, grouped by modification date.
++#: src/nautilus-codlab-grouping.c
++msgctxt "group heading"
++msgid "Last week"
++msgstr "Ultima settimana"
++
++#. Translators: CodLab: section header of a group of files in the list view, grouped by modification date.
++#: src/nautilus-codlab-grouping.c
++msgctxt "group heading"
++msgid "Last month"
++msgstr "Ultimo mese"
++
++#. Translators: CodLab: section header of a group of files in the list view, grouped by modification date.
++#: src/nautilus-codlab-grouping.c
++msgctxt "group heading"
++msgid "Older"
++msgstr "Più vecchi"
++
++#. Translators: CodLab: section header of a group of files in the list view, grouped by size.
++#: src/nautilus-codlab-grouping.c
++msgctxt "group heading"
++msgid "Large"
++msgstr "Grande"
++
++#. Translators: CodLab: section header of a group of files in the list view, grouped by size.
++#: src/nautilus-codlab-grouping.c
++msgctxt "group heading"
++msgid "Medium"
++msgstr "Media"
++
++#. Translators: CodLab: section header of a group of files in the list view, grouped by size.
++#: src/nautilus-codlab-grouping.c
++msgctxt "group heading"
++msgid "Small"
++msgstr "Piccola"
++
+ #: src/resources/ui/nautilus-view-controls.blp:28
+ msgid "Show _Hidden Files"
+ msgstr "Mostra file _nascosti"
+diff -ruN a/po/POTFILES.in b/po/POTFILES.in
+--- a/po/POTFILES.in	2026-09-15 01:11:52.000000000 +0200
++++ b/po/POTFILES.in	2026-11-01 07:12:53.149343411 +0100
+@@ -18,6 +18,7 @@
+ src/nautilus-batch-rename-dialog.h
+ src/nautilus-bookmark.c
+ src/nautilus-clipboard.c
++src/nautilus-codlab-grouping.c
+ src/nautilus-column-chooser.c
+ src/nautilus-column-utilities.c
+ src/nautilus-compress-dialog.c
+diff -ruN a/src/meson.build b/src/meson.build
+--- a/src/meson.build	2026-11-01 00:13:25.291635462 +0100
++++ b/src/meson.build	2026-11-01 07:12:48.278526271 +0100
+@@ -72,6 +72,8 @@
+   'nautilus-clipboard.h',
+   'nautilus-column-chooser.c',
+   'nautilus-column-chooser.h',
++  'nautilus-codlab-grouping.c',
++  'nautilus-codlab-grouping.h',
+   'nautilus-column-utilities.c',
+   'nautilus-column-utilities.h',
+   'nautilus-compress-dialog.c',
+diff -ruN a/src/nautilus-codlab-grouping.c b/src/nautilus-codlab-grouping.c
+--- a/src/nautilus-codlab-grouping.c	1970-01-01 01:00:00.000000000 +0100
++++ b/src/nautilus-codlab-grouping.c	2026-11-01 07:15:46.084135757 +0100
+@@ -0,0 +1,389 @@
++/* CodLab (INC-3 «Nautilus potente»): raggruppa la vista a elenco.
++ * Vedi nautilus-codlab-grouping.h per il disegno.
++ *
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++#include <glib/gi18n.h>
++
++#include "nautilus-codlab-grouping.h"
++
++#include "nautilus-file.h"
++#include "nautilus-view-item.h"
++
++/* soglie del raggruppamento per dimensione, come da PIANO INC-3:
++ * grande/media/piccola. 100 MiB e 1 MiB, soglie tonde e dichiarate. */
++#define CODELAB_GRANDE_BYTES (100ull * 1024 * 1024)
++#define CODELAB_MEDIA_BYTES (1ull * 1024 * 1024)
++
++/* ranghi dei gruppi: l'ordine qui e' l'ordine di visualizzazione */
++enum
++{
++    GRUPPO_TIPO_CARTELLE = 0,
++    GRUPPO_TIPO_IMMAGINI,
++    GRUPPO_TIPO_VIDEO,
++    GRUPPO_TIPO_DOCUMENTI,
++    GRUPPO_TIPO_AUDIO,
++    GRUPPO_TIPO_ALTRO,
++    N_GRUPPI_TIPO,
++};
++
++enum
++{
++    GRUPPO_DATA_OGGI = 0,
++    GRUPPO_DATA_IERI,
++    GRUPPO_DATA_SETTIMANA,
++    GRUPPO_DATA_MESE,
++    GRUPPO_DATA_VECCHI,
++    N_GRUPPI_DATA,
++};
++
++enum
++{
++    GRUPPO_DIM_GRANDE = 0,
++    GRUPPO_DIM_MEDIA,
++    GRUPPO_DIM_PICCOLA,
++    N_GRUPPI_DIM,
++};
++
++NautilusCodlabGroupMode
++nautilus_codlab_group_mode_from_string (const char *value)
++{
++    if (g_strcmp0 (value, "tipo") == 0)
++    {
++        return NAUTILUS_CODELAB_GROUP_TIPO;
++    }
++    if (g_strcmp0 (value, "data") == 0)
++    {
++        return NAUTILUS_CODELAB_GROUP_DATA;
++    }
++    if (g_strcmp0 (value, "dimensione") == 0)
++    {
++        return NAUTILUS_CODELAB_GROUP_DIMENSIONE;
++    }
++
++    /* "nessuno", valori sconosciuti, NULL: niente raggruppamento */
++    return NAUTILUS_CODELAB_GROUP_NESSUNO;
++}
++
++/* Documenti: tutto cio' che un utente legge, non guarda e non ascolta.
++ * Elenco esplicito per non classificare male gli application/ strani. */
++static gboolean
++mime_e_documento (const char *mime)
++{
++    static const char *esatti[] =
++    {
++        "application/pdf",
++        "application/rtf",
++        "application/msword",
++        "application/epub+zip",
++        "application/json",
++        "application/xml",
++        "application/xhtml+xml",
++        "text/html",
++        NULL,
++    };
++
++    if (mime == NULL)
++    {
++        return FALSE;
++    }
++
++    if (g_str_has_prefix (mime, "text/"))
++    {
++        return TRUE;
++    }
++
++    for (int i = 0; esatti[i] != NULL; i++)
++    {
++        if (g_strcmp0 (mime, esatti[i]) == 0)
++        {
++            return TRUE;
++        }
++    }
++
++    return (g_str_has_prefix (mime, "application/vnd.oasis.opendocument.") ||
++            g_str_has_prefix (mime, "application/vnd.openxmlformats-officedocument.") ||
++            g_str_has_prefix (mime, "application/vnd.ms-") ||
++            g_str_has_prefix (mime, "application/vnd.oasis.opendocument"));
++}
++
++static int
++rank_tipo (NautilusFile *file)
++{
++    const char *mime;
++
++    if (file == NULL)
++    {
++        return GRUPPO_TIPO_ALTRO;
++    }
++
++    if (nautilus_file_is_directory (file))
++    {
++        return GRUPPO_TIPO_CARTELLE;
++    }
++
++    mime = nautilus_file_get_mime_type (file);
++    if (mime == NULL)
++    {
++        return GRUPPO_TIPO_ALTRO;
++    }
++
++    if (g_str_has_prefix (mime, "image/"))
++    {
++        return GRUPPO_TIPO_IMMAGINI;
++    }
++    if (g_str_has_prefix (mime, "video/"))
++    {
++        return GRUPPO_TIPO_VIDEO;
++    }
++    if (mime_e_documento (mime))
++    {
++        return GRUPPO_TIPO_DOCUMENTI;
++    }
++    if (g_str_has_prefix (mime, "audio/"))
++    {
++        return GRUPPO_TIPO_AUDIO;
++    }
++
++    return GRUPPO_TIPO_ALTRO;
++}
++
++static GDateTime *
++mezzanotte_di (GDateTime *t)
++{
++    return g_date_time_new_local (g_date_time_get_year (t),
++                                  g_date_time_get_month (t),
++                                  g_date_time_get_day_of_month (t),
++                                  0, 0, 0.0);
++}
++
++static int
++rank_data (NautilusFile *file)
++{
++    time_t mtime;
++    g_autoptr (GDateTime) t_file = NULL;
++    g_autoptr (GDateTime) t_adesso = NULL;
++    g_autoptr (GDateTime) notte_file = NULL;
++    g_autoptr (GDateTime) notte_oggi = NULL;
++    glong giorni_fa;
++
++    if (file == NULL)
++    {
++        return GRUPPO_DATA_VECCHI;
++    }
++
++    mtime = nautilus_file_get_mtime (file);
++    if (mtime == (time_t) 0 || mtime == (time_t) -1)
++    {
++        return GRUPPO_DATA_VECCHI;
++    }
++
++    t_file = g_date_time_new_from_unix_local ((gint64) mtime);
++    t_adesso = g_date_time_new_now_local ();
++    if (t_file == NULL || t_adesso == NULL)
++    {
++        return GRUPPO_DATA_VECCHI;
++    }
++
++    notte_oggi = mezzanotte_di (t_adesso);
++
++    /* oggi (o, strano ma vero, nel futuro): primo gruppo */
++    if (g_date_time_difference (t_file, notte_oggi) >= 0)
++    {
++        return GRUPPO_DATA_OGGI;
++    }
++
++    notte_file = mezzanotte_di (t_file);
++    giorni_fa = (gint) (-g_date_time_difference (notte_file, notte_oggi) / G_TIME_SPAN_DAY);
++    if (giorni_fa <= 1)
++    {
++        return GRUPPO_DATA_IERI;
++    }
++    if (giorni_fa <= 7)
++    {
++        return GRUPPO_DATA_SETTIMANA;
++    }
++    if (giorni_fa <= 31)
++    {
++        return GRUPPO_DATA_MESE;
++    }
++
++    return GRUPPO_DATA_VECCHI;
++}
++
++static int
++rank_dimensione (NautilusFile *file)
++{
++    if (file == NULL)
++    {
++        return GRUPPO_DIM_PICCOLA;
++    }
++
++    /* nautilus_file_get_size torna 4096 per le cartelle e la dimensione
++     * nota per i file: per il raggruppamento va bene cosi' (le cartelle
++     * finiscono nella sezione Piccola o dove la loro dimensione le mette) */
++    if (nautilus_file_get_size (file) >= CODELAB_GRANDE_BYTES)
++    {
++        return GRUPPO_DIM_GRANDE;
++    }
++    if (nautilus_file_get_size (file) >= CODELAB_MEDIA_BYTES)
++    {
++        return GRUPPO_DIM_MEDIA;
++    }
++
++    return GRUPPO_DIM_PICCOLA;
++}
++
++int
++nautilus_codlab_group_rank (NautilusCodlabGroupMode  mode,
++                            NautilusFile            *file)
++{
++    switch (mode)
++    {
++        case NAUTILUS_CODELAB_GROUP_TIPO:
++        {
++            return rank_tipo (file);
++        }
++
++        case NAUTILUS_CODELAB_GROUP_DATA:
++        {
++            return rank_data (file);
++        }
++
++        case NAUTILUS_CODELAB_GROUP_DIMENSIONE:
++        {
++            return rank_dimensione (file);
++        }
++
++        case NAUTILUS_CODELAB_GROUP_NESSUNO:
++        break;
++    }
++
++    return 0;
++}
++
++const char *
++nautilus_codlab_group_label (NautilusCodlabGroupMode  mode,
++                             int                      rank)
++{
++    /* C_() non e' una costante di compilatore: switch, non array statico.
++     * Contesto "group heading" su TUTTE le stringhe: niente collisioni
++     * con gli msgid gia' presenti (lezione it.po di INC-1/INC-2). */
++    switch (mode)
++    {
++        case NAUTILUS_CODELAB_GROUP_TIPO:
++        {
++            switch (rank)
++            {
++                case GRUPPO_TIPO_CARTELLE:    return C_ ("group heading", "Folders");
++                case GRUPPO_TIPO_IMMAGINI:    return C_ ("group heading", "Images");
++                case GRUPPO_TIPO_VIDEO:       return C_ ("group heading", "Videos");
++                case GRUPPO_TIPO_DOCUMENTI:   return C_ ("group heading", "Documents");
++                case GRUPPO_TIPO_AUDIO:       return C_ ("group heading", "Audio");
++                default:                      return C_ ("group heading", "Other");
++            }
++        }
++
++        case NAUTILUS_CODELAB_GROUP_DATA:
++        {
++            switch (rank)
++            {
++                case GRUPPO_DATA_OGGI:      return C_ ("group heading", "Today");
++                case GRUPPO_DATA_IERI:      return C_ ("group heading", "Yesterday");
++                case GRUPPO_DATA_SETTIMANA: return C_ ("group heading", "Last week");
++                case GRUPPO_DATA_MESE:      return C_ ("group heading", "Last month");
++                default:                    return C_ ("group heading", "Older");
++            }
++        }
++
++        case NAUTILUS_CODELAB_GROUP_DIMENSIONE:
++        {
++            switch (rank)
++            {
++                case GRUPPO_DIM_GRANDE:  return C_ ("group heading", "Large");
++                case GRUPPO_DIM_MEDIA:   return C_ ("group heading", "Medium");
++                default:                 return C_ ("group heading", "Small");
++            }
++        }
++
++        case NAUTILUS_CODELAB_GROUP_NESSUNO:
++        break;
++    }
++
++    return "";
++}
++
++const char *
++nautilus_codlab_group_item_label (NautilusCodlabGroupMode  mode,
++                                  NautilusViewItem        *item)
++{
++    NautilusFile *file;
++
++    if (item == NULL)
++    {
++        return "";
++    }
++
++    file = nautilus_view_item_get_file (item);
++    if (file == NULL)
++    {
++        return "";
++    }
++
++    return nautilus_codlab_group_label (mode, nautilus_codlab_group_rank (mode, file));
++}
++
++static int
++confronta_item (gconstpointer a,
++                gconstpointer b,
++                gpointer      user_data)
++{
++    NautilusCodlabGroupMode mode = (NautilusCodlabGroupMode) GPOINTER_TO_INT (user_data);
++    int ra = nautilus_codlab_group_rank (mode,
++                                         nautilus_view_item_get_file (NAUTILUS_VIEW_ITEM ((gpointer) a)));
++    int rb = nautilus_codlab_group_rank (mode,
++                                         nautilus_view_item_get_file (NAUTILUS_VIEW_ITEM ((gpointer) b)));
++
++    if (ra != rb)
++    {
++        return (ra < rb) ? -1 : 1;
++    }
++
++    return GTK_ORDERING_EQUAL;
++}
++
++static int
++confronta_riga (gconstpointer a,
++                gconstpointer b,
++                gpointer      user_data)
++{
++    NautilusCodlabGroupMode mode = (NautilusCodlabGroupMode) GPOINTER_TO_INT (user_data);
++    /* righe del tree model:GtkTreeListRow -> NautilusViewItem -> file; gli
++     * item tornati da gtk_tree_list_row_get_item sono nostri: unref subito */
++    g_autoptr (NautilusViewItem) ia = gtk_tree_list_row_get_item (GTK_TREE_LIST_ROW ((gpointer) a));
++    g_autoptr (NautilusViewItem) ib = gtk_tree_list_row_get_item (GTK_TREE_LIST_ROW ((gpointer) b));
++    int ra = (ia != NULL) ?
++             nautilus_codlab_group_rank (mode, nautilus_view_item_get_file (ia)) : 0;
++    int rb = (ib != NULL) ?
++             nautilus_codlab_group_rank (mode, nautilus_view_item_get_file (ib)) : 0;
++
++    if (ra != rb)
++    {
++        return (ra < rb) ? -1 : 1;
++    }
++
++    return GTK_ORDERING_EQUAL;
++}
++
++GtkSorter *
++nautilus_codlab_group_sorter_new (NautilusCodlabGroupMode mode)
++{
++    return GTK_SORTER (gtk_custom_sorter_new (confronta_item, GINT_TO_POINTER (mode), NULL));
++}
++
++GtkSorter *
++nautilus_codlab_group_section_sorter_new (NautilusCodlabGroupMode mode)
++{
++    return GTK_SORTER (gtk_custom_sorter_new (confronta_riga, GINT_TO_POINTER (mode), NULL));
++}
+diff -ruN a/src/nautilus-codlab-grouping.h b/src/nautilus-codlab-grouping.h
+--- a/src/nautilus-codlab-grouping.h	1970-01-01 01:00:00.000000000 +0100
++++ b/src/nautilus-codlab-grouping.h	2026-11-01 07:10:30.198237633 +0100
+@@ -0,0 +1,66 @@
++/* CodLab (INC-3 «Nautilus potente»): raggruppamento della vista a elenco.
++ *
++ * GNOME Files non ha un «Raggruppa per»; Explorer sì. GTK 4.12+ però ha
++ * gia' le sezioni nelle liste (GtkSectionModel + header factory di
++ * GtkColumnView) e NautilusViewModel espone gia'
++ * nautilus_view_model_set_section_sorter(): qui vive solo la decizione di
++ * QUale gruppo prende un file (il «bucket»), l'ordine dei gruppi e le
++ * etichette tradotte delle intestazioni.
++ *
++ * Tre modi, come il menu «Raggruppa per» di Explorer:
++ *   tipo       Cartelle / Immagini / Video / Documenti / Audio / Altro
++ *   data       Oggi / Ieri / Ultima settimana / Ultimo mese / Più vecchi
++ *              (sulla data di modifica, a mezzanotte locale)
++ *   dimensione Grande (>= 100 MiB) / Media (>= 1 MiB) / Piccola
++ *
++ * Il rango e' l'ordine di visualizzazione (0 primo). Due sorter:
++ * uno sui NautilusViewItem per l'ordinamento globale (il gruppo PRIMA delle
++ * cartelle-prima e dell'ordinamento delle colonne, altrimenti le sezioni non
++ * restano contigue) e uno sui GtkTreeListRow per il section model di
++ * GtkSortListModel. Nessuna dipendenza nuova.
++ *
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++#pragma once
++
++#include <gtk/gtk.h>
++
++#include "nautilus-file.h"
++#include "nautilus-view-item.h"
++
++G_BEGIN_DECLS
++
++typedef enum
++{
++    NAUTILUS_CODELAB_GROUP_NESSUNO = 0,
++    NAUTILUS_CODELAB_GROUP_TIPO,
++    NAUTILUS_CODELAB_GROUP_DATA,
++    NAUTILUS_CODELAB_GROUP_DIMENSIONE,
++} NautilusCodlabGroupMode;
++
++/* "nessuno" (default, e qualunque valore sconosciuto), "tipo", "data",
++ * "dimensione" — i valori della chiave org.gnome.nautilus.codlab:
++ * raggruppa-per. Mai abortire su valori futuri o sporchi. */
++NautilusCodlabGroupMode nautilus_codlab_group_mode_from_string (const char *value);
++
++/* rango del gruppo del file nell'ordine di visualizzazione; un file NULL
++ * finisce nell'ULTIMO gruppo (mai un deref) */
++int nautilus_codlab_group_rank (NautilusCodlabGroupMode mode,
++                                NautilusFile           *file);
++
++/* etichetta tradotta dell'intestazione del gruppo di quel rango */
++const char *nautilus_codlab_group_label (NautilusCodlabGroupMode mode,
++                                         int                     rank);
++
++/* etichetta tradotta del gruppo di un item (per l'header factory) */
++const char *nautilus_codlab_group_item_label (NautilusCodlabGroupMode  mode,
++                                              NautilusViewItem        *item);
++
++/* sorter sui NautilusViewItem: gruppo prima di tutto il resto */
++GtkSorter *nautilus_codlab_group_sorter_new (NautilusCodlabGroupMode mode);
++
++/* sorter sui GtkTreeListRow: per nautilus_view_model_set_section_sorter */
++GtkSorter *nautilus_codlab_group_section_sorter_new (NautilusCodlabGroupMode mode);
++
++G_END_DECLS
+diff -ruN a/src/nautilus-files-view.c b/src/nautilus-files-view.c
+--- a/src/nautilus-files-view.c	2026-11-01 00:13:25.187799931 +0100
++++ b/src/nautilus-files-view.c	2026-11-01 07:14:14.038707720 +0100
+@@ -2593,6 +2593,35 @@
+     nautilus_list_view_present_column_editor (NAUTILUS_LIST_VIEW (self->list_base));
+ }
+ 
++/* CodLab (INC-3): «Raggruppa per» della vista a elenco — la voce di menu e'
++ * un radio sul valore della chiave org.gnome.nautilus.codlab:raggruppa-per;
++ * chi ci scrive e' SOLO questo cambio di stato (mai valori fuori lista).
++ * La vista elenco ascolta la chiave e riordina: una sola fonte di verita'. */
++static void
++action_raggruppa_per_changed (GSimpleAction *action,
++                              GVariant      *value,
++                              gpointer       user_data)
++{
++    const char *target = g_variant_get_string (value, NULL);
++
++    if (g_strcmp0 (target, "nessuno") != 0 &&
++        g_strcmp0 (target, "tipo") != 0 &&
++        g_strcmp0 (target, "data") != 0 &&
++        g_strcmp0 (target, "dimensione") != 0)
++    {
++        return;
++    }
++
++    g_simple_action_set_state (action, value);
++
++    if (nautilus_codlab_preferences_has_raggruppa_per ())
++    {
++        g_settings_set_string (nautilus_codlab_preferences,
++                               NAUTILUS_CODELAB_PREFERENCES_RAGGRUPPA_PER,
++                               target);
++    }
++}
++
+ static void
+ action_visible_captions (GSimpleAction *action,
+                          GVariant      *state,
+@@ -6934,6 +6963,9 @@
+     { .name = "show-hidden-files", .state = "true", .change_state = action_show_hidden_files },
+     { .name = "visible-columns", .activate = action_visible_columns },
+     { .name = "visible-captions", .activate = action_visible_captions },
++    /* CodLab (INC-3): raggruppamento della vista a elenco */
++    { .name = "raggruppa-per", .parameter_type = "s", .state = "'nessuno'",
++      .change_state = action_raggruppa_per_changed },
+     /* Background menu */
+     { .name = "empty-trash", .activate = action_empty_trash },
+     { .name = "new-folder", .activate = action_new_folder },
+@@ -7799,6 +7831,26 @@
+     g_simple_action_set_enabled (G_SIMPLE_ACTION (action),
+                                  NAUTILUS_IS_GRID_VIEW (self->list_base));
+ 
++    /* CodLab (INC-3): «Raggruppa per» solo nella vista a elenco e solo se
++     * la chiave esiste nello schema visibile (binario nuovo + schema
++     * vecchio = voce nascosta, mai un'azione che abortisce scrivendo) */
++    action = g_action_map_lookup_action (G_ACTION_MAP (view_action_group),
++                                         "raggruppa-per");
++    if (nautilus_codlab_preferences_has_raggruppa_per ())
++    {
++        g_autofree char *valore = nautilus_codlab_preferences_get_raggruppa_per ();
++
++        g_simple_action_set_enabled (G_SIMPLE_ACTION (action),
++                                     NAUTILUS_IS_LIST_VIEW (self->list_base));
++        g_action_group_change_action_state (view_action_group,
++                                            "raggruppa-per",
++                                            g_variant_new_string (valore));
++    }
++    else
++    {
++        g_simple_action_set_enabled (G_SIMPLE_ACTION (action), FALSE);
++    }
++
+     update_zoom_actions_state (self);
+ 
+     current_location = nautilus_file_get_location (self->directory_as_file);
+diff -ruN a/src/nautilus-global-preferences.c b/src/nautilus-global-preferences.c
+--- a/src/nautilus-global-preferences.c	2026-11-01 00:54:34.684657955 +0100
++++ b/src/nautilus-global-preferences.c	2026-11-01 07:34:22.115196317 +0100
+@@ -48,6 +48,30 @@
+ static gboolean mouse_extra_buttons = TRUE;
+ static guint mouse_forward_button = 9;
+ static guint mouse_back_button = 8;
++/* CodLab (INC-3): schema nostro cachato per la guardia has_key per-chiave */
++static GSettingsSchema *codlab_schema = NULL;
++
++char *
++nautilus_codlab_preferences_get_raggruppa_per (void)
++{
++    if (nautilus_codlab_preferences == NULL || codlab_schema == NULL ||
++        !g_settings_schema_has_key (codlab_schema,
++                                    NAUTILUS_CODELAB_PREFERENCES_RAGGRUPPA_PER))
++    {
++        return g_strdup ("nessuno");
++    }
++
++    return g_settings_get_string (nautilus_codlab_preferences,
++                                  NAUTILUS_CODELAB_PREFERENCES_RAGGRUPPA_PER);
++}
++
++gboolean
++nautilus_codlab_preferences_has_raggruppa_per (void)
++{
++    return (nautilus_codlab_preferences != NULL && codlab_schema != NULL &&
++            g_settings_schema_has_key (codlab_schema,
++                                       NAUTILUS_CODELAB_PREFERENCES_RAGGRUPPA_PER));
++}
+ 
+ static void
+ use_extra_mouse_buttons_changed (gpointer callback_data)
+@@ -124,6 +148,21 @@
+         {
+             nautilus_codlab_preferences = g_settings_new (NAUTILUS_CODELAB_PREFERENCES_SCHEMA);
+         }
++
++        /* CodLab (INC-3): lo schema resta cachato anche quando l'istanza non
++         * nasce: la guardia has_key sulla chiave NUOVA (raggruppa-per) si fa
++         * con questo, cosi' un binario 1.9 davanti a uno schema 1.8.1 tiene
++         * riquadro e ricerca attivi e lascia il raggruppamento spento.
++         * ATTENZIONE: GSettingsSchema NON e' un GObject (e' un struct
++         * refcountato con g_settings_schema_ref/unref): g_set_object qui
++         * e' type-confusion — misurato, g_object_ref CRITICAL e SIGSEGV 139
++         * alla prima has_key (riprodotto con 20 righe fuori da Nautilus). */
++        if (codlab_schema != NULL)
++        {
++            g_settings_schema_unref (codlab_schema);
++        }
++        codlab_schema = (schema_codlab != NULL) ?
++                        g_settings_schema_ref (schema_codlab) : NULL;
+     }
+     nautilus_compression_preferences = g_settings_new ("org.gnome.nautilus.compression");
+     nautilus_window_state = g_settings_new ("org.gnome.nautilus.window-state");
+diff -ruN a/src/nautilus-global-preferences.h b/src/nautilus-global-preferences.h
+--- a/src/nautilus-global-preferences.h	2026-11-01 00:13:25.288065178 +0100
++++ b/src/nautilus-global-preferences.h	2026-11-01 07:13:32.195619190 +0100
+@@ -119,6 +119,17 @@
+ #define NAUTILUS_CODELAB_PREFERENCES_RICERCA_SOLO_QUI "ricerca-solo-qui"
+ /* CodLab (INC-2): riquadro dettagli a destra, stato ricordato */
+ #define NAUTILUS_CODELAB_PREFERENCES_RIQUADRO_DETTAGLI "riquadro-dettagli"
++/* CodLab (INC-3): raggruppamento della vista a elenco
++ * (nessuno/tipo/data/dimensione), come «Raggruppa per» di Explorer */
++#define NAUTILUS_CODELAB_PREFERENCES_RAGGRUPPA_PER "raggruppa-per"
++
++/* CodLab (INC-3): legge raggruppa-per in sicurezza: senza istanza GSettings
++ * (schema assente) o senza la chiave (schema 1.8.1) torna "nessuno", MAI
++ * un abort GLib-GIO-ERROR. Stringa di proprieta' del chiamante (g_free). */
++char *nautilus_codlab_preferences_get_raggruppa_per (void);
++/* TRUE solo se la chiave ESISTE nello schema visibile: chi abilita azioni
++ * o scrive deve chiederlo prima (g_settings_set su chiave assente abortisce) */
++gboolean nautilus_codlab_preferences_has_raggruppa_per (void);
+ 
+ /* Context menu options */
+ #define NAUTILUS_PREFERENCES_SHOW_DELETE_PERMANENTLY "show-delete-permanently"
+diff -ruN a/src/nautilus-list-view.c b/src/nautilus-list-view.c
+--- a/src/nautilus-list-view.c	2026-09-15 01:11:52.000000000 +0200
++++ b/src/nautilus-list-view.c	2026-11-01 07:29:22.633595094 +0100
+@@ -16,6 +16,7 @@
+ 
+ #include "nautilus-column-chooser.h"
+ #include "nautilus-column-utilities.h"
++#include "nautilus-codlab-grouping.h"
+ #include "nautilus-directory.h"
+ #include "nautilus-file.h"
+ #include "nautilus-file-utilities.h"
+@@ -54,6 +55,11 @@
+     GHashTable *factory_to_column_map;
+ 
+     GtkSorter *view_model_sorter;
++
++    /* CodLab (INC-3): raggruppamento «Raggruppa per» — modo corrente e
++     * factory delle intestazioni di sezione (GTK 4.12+) */
++    NautilusCodlabGroupMode group_mode;
++    GtkListItemFactory *group_header_factory;
+ };
+ 
+ G_DEFINE_FINAL_TYPE (NautilusListView, nautilus_list_view, NAUTILUS_TYPE_LIST_BASE)
+@@ -358,6 +364,51 @@
+     gtk_expression_bind (expression, columnviewrow, "accessible-label", columnviewrow);
+ }
+ 
++/* CodLab (INC-3): intestazioni di sezione del «Raggruppa per» — l'header
++ * factory delle sezioni GTK 4.12+. Ogni GtkListHeader riceve il PRIMO
++ * item della sua sezione: l'etichetta del gruppo si ricava da quello. */
++static void
++setup_group_header (GtkSignalListItemFactory *factory,
++                    GtkListHeader            *header,
++                    gpointer                  user_data)
++{
++    GtkWidget *label = gtk_label_new (NULL);
++
++    gtk_label_set_xalign (GTK_LABEL (label), 0.0);
++    gtk_widget_set_margin_top (GTK_WIDGET (label), 8);
++    gtk_widget_set_margin_bottom (GTK_WIDGET (label), 4);
++    gtk_widget_set_margin_start (GTK_WIDGET (label), 2);
++    gtk_widget_add_css_class (GTK_WIDGET (label), "heading");
++    gtk_widget_add_css_class (GTK_WIDGET (label), "codlab-group-header");
++    gtk_list_header_set_child (header, label);
++}
++
++static void
++bind_group_header (GtkSignalListItemFactory *factory,
++                   GtkListHeader            *header,
++                   gpointer                  user_data)
++{
++    NautilusListView *self = NAUTILUS_LIST_VIEW (user_data);
++    GtkWidget *child = gtk_list_header_get_child (header);
++    gpointer item = gtk_list_header_get_item (header);
++    const char *testo = "";
++
++    /* gtk_list_header_get_item e' transfer NONE (gir): il riferimento e'
++     * del list header, qui NON si tocca — l'unref in piu' corrompeva il
++     * refcount e Nautilus moriva con SIGSEGV 139 alla prima sezione
++     * (misurato nella fumata INC-3, g_object_ref CRITICAL subito prima) */
++    if (GTK_IS_TREE_LIST_ROW (item))
++    {
++        NautilusViewItem *view_item =
++            NAUTILUS_VIEW_ITEM (gtk_tree_list_row_get_item (GTK_TREE_LIST_ROW (item)));
++
++        testo = nautilus_codlab_group_item_label (self->group_mode, view_item);
++        g_clear_object (&view_item);
++    }
++
++    gtk_label_set_text (GTK_LABEL (child), testo);
++}
++
+ static GtkColumnView *
+ create_view_ui (NautilusListView *self)
+ {
+@@ -1056,6 +1107,10 @@
+     gtk_widget_activate_action (GTK_WIDGET (self), "slot.reload", NULL);
+ }
+ 
++/* CodLab (INC-3): definite piu' sotto, usate da on_model_changed */
++static void update_grouping (NautilusListView *self);
++static void applica_ordinamento (NautilusListView *self);
++
+ static void
+ on_model_changed (NautilusListView *self)
+ {
+@@ -1063,17 +1118,6 @@
+ 
+     if (model != NULL)
+     {
+-        g_autoptr (GtkMultiSorter) sorter = gtk_multi_sorter_new ();
+-        GtkSorter *column_view_sorter = gtk_column_view_get_sorter (self->view_ui);
+-        g_autoptr (GtkCustomSorter) directories_sorter = NULL;
+-
+-        directories_sorter = gtk_custom_sorter_new (sort_directories_func, &self->directories_first, NULL);
+-        gtk_multi_sorter_append (sorter, g_object_ref (GTK_SORTER (directories_sorter)));
+-        gtk_multi_sorter_append (sorter, g_object_ref (column_view_sorter));
+-        g_set_object (&self->view_model_sorter, GTK_SORTER (sorter));
+-
+-        nautilus_view_model_set_sorter (model, self->view_model_sorter);
+-
+         nautilus_view_model_expand_as_a_tree (model, self->expand_as_a_tree);
+ 
+         gtk_column_view_set_enable_rubberband (GTK_COLUMN_VIEW (self->view_ui),
+@@ -1081,6 +1125,84 @@
+     }
+ 
+     gtk_column_view_set_model (self->view_ui, GTK_SELECTION_MODEL (model));
++
++    /* CodLab (INC-3): sorter, sezioni e intestazioni seguono il
++     * raggruppamento (update_grouping chiama applica_ordinamento) */
++    update_grouping (self);
++}
++
++/* CodLab (INC-3) — il cuore del «Raggruppa per».
++ *
++ * Il sorter del gruppo va PRIMA di quello delle cartelle-prima: se le
++ * cartelle venissero prima, occuperebbero un blocco iniziale che attraversa
++ * piu' gruppi e le sezioni non resterebbero contigue (il section model di
++ * GTK 4.12 d gruppo per tratti SUCCESSIVI uguali: l'ordinamento deve
++ * metterli vicini). Il section sorter separato (sui GtkTreeListRow) dice
++ * SOLO dove cambiano i gruppi, senza riordinare.
++ *
++ * Con il raggruppamento attivo l'espansione ad albero della vista resta
++ * spenta: i figli di una riga espansa restano incollati al padre e
++ * spezzerebbero le sezioni (Explorer raggruppa solo a livello piano).
++ * Torna da sola quando il raggruppamento torna a nessuno. */
++static void
++applica_ordinamento (NautilusListView *self)
++{
++    NautilusViewModel *model = nautilus_list_base_get_model (NAUTILUS_LIST_BASE (self));
++
++    if (model == NULL)
++    {
++        return;
++    }
++
++    g_autoptr (GtkMultiSorter) sorter = gtk_multi_sorter_new ();
++    GtkSorter *column_view_sorter = gtk_column_view_get_sorter (self->view_ui);
++    g_autoptr (GtkCustomSorter) directories_sorter = NULL;
++
++    directories_sorter = gtk_custom_sorter_new (sort_directories_func, &self->directories_first, NULL);
++
++    if (self->group_mode != NAUTILUS_CODELAB_GROUP_NESSUNO)
++    {
++        gtk_multi_sorter_append (sorter, nautilus_codlab_group_sorter_new (self->group_mode));
++    }
++    gtk_multi_sorter_append (sorter, g_object_ref (GTK_SORTER (directories_sorter)));
++    gtk_multi_sorter_append (sorter, g_object_ref (column_view_sorter));
++    g_set_object (&self->view_model_sorter, GTK_SORTER (sorter));
++
++    nautilus_view_model_set_sorter (model, self->view_model_sorter);
++}
++
++static void
++update_grouping (NautilusListView *self)
++{
++    NautilusViewModel *model = nautilus_list_base_get_model (NAUTILUS_LIST_BASE (self));
++    g_autofree char *valore = nautilus_codlab_preferences_get_raggruppa_per ();
++
++    self->group_mode = nautilus_codlab_group_mode_from_string (valore);
++
++    if (model != NULL)
++    {
++        if (self->group_mode != NAUTILUS_CODELAB_GROUP_NESSUNO)
++        {
++            nautilus_view_model_set_section_sorter
++                (model, nautilus_codlab_group_section_sorter_new (self->group_mode));
++            gtk_column_view_set_header_factory (self->view_ui, self->group_header_factory);
++            nautilus_view_model_expand_as_a_tree (model, FALSE);
++        }
++        else
++        {
++            nautilus_view_model_set_section_sorter (model, NULL);
++            gtk_column_view_set_header_factory (self->view_ui, NULL);
++            nautilus_view_model_expand_as_a_tree (model, self->expand_as_a_tree);
++        }
++    }
++
++    applica_ordinamento (self);
++}
++
++static void
++on_raggruppa_per_changed (NautilusListView *self)
++{
++    update_grouping (self);
+ }
+ 
+ static void
+@@ -1109,6 +1231,24 @@
+                              self,
+                              G_CONNECT_SWAPPED);
+ 
++    /* CodLab (INC-3): «Raggruppa per» — ascolto della chiave nostra.
++     * L'istanza GSettings c'e' solo se lo schema codlab e' completo:
++     * senza schema niente listener, il raggruppamento resta spento. */
++    self->group_mode = NAUTILUS_CODELAB_GROUP_NESSUNO;
++    self->group_header_factory = gtk_signal_list_item_factory_new ();
++    g_signal_connect (self->group_header_factory, "setup",
++                      G_CALLBACK (setup_group_header), self);
++    g_signal_connect (self->group_header_factory, "bind",
++                      G_CALLBACK (bind_group_header), self);
++    if (nautilus_codlab_preferences != NULL)
++    {
++        g_signal_connect_object (nautilus_codlab_preferences,
++                                 "changed::" NAUTILUS_CODELAB_PREFERENCES_RAGGRUPPA_PER,
++                                 G_CALLBACK (on_raggruppa_per_changed),
++                                 self,
++                                 G_CONNECT_SWAPPED);
++    }
++
+     self->view_ui = create_view_ui (self);
+     nautilus_list_base_setup_gestures (NAUTILUS_LIST_BASE (self));
+ 
+@@ -1161,6 +1301,10 @@
+     }
+     g_clear_object (&self->view_model_sorter);
+ 
++    /* CodLab (INC-3): la vista va via, via la factory dei gruppi (alla
++     * column view resta il suo riferimento, qui si lascia il nostro) */
++    g_clear_object (&self->group_header_factory);
++
+     g_clear_object (&self->search_directory);
+ 
+     g_signal_handlers_disconnect_by_func (nautilus_list_view_preferences,
+diff -ruN a/src/resources/ui/nautilus-view-controls.blp b/src/resources/ui/nautilus-view-controls.blp
+--- a/src/resources/ui/nautilus-view-controls.blp	2026-09-15 01:11:52.000000000 +0200
++++ b/src/resources/ui/nautilus-view-controls.blp	2026-11-01 08:12:03.546814745 +0100
+@@ -23,6 +23,46 @@
+     label: C_("menu item", "Sort");
+   }
+ 
++  /* CodLab (INC-3 «Nautilus potente»): «Raggruppa per» della vista a
++     elenco, come Explorer. Voci PIATTE (niente sottomenu): quando l'azione
++     e' disabilitata (vista a icone, o schema senza la chiave) le voci si
++     nascondono e la sezione SPARISCE intera — con l'etichetta di sezione
++     il sottomenu vuoto restava li' (misurato nella prova senza-schema).
++     Ogni voce porta il prefisso «Raggruppa per:» per stare da sola. */
++  section {
++    item {
++      /* Translators: CodLab: no grouping in the "Group By" options of the list view. */
++      label: C_("menu item", "Group By: None");
++      action: "view.raggruppa-per";
++      target: "nessuno";
++      hidden-when: "action-disabled";
++    }
++
++    item {
++      /* Translators: CodLab: group the list view by file type. */
++      label: C_("menu item", "Group By: Type");
++      action: "view.raggruppa-per";
++      target: "tipo";
++      hidden-when: "action-disabled";
++    }
++
++    item {
++      /* Translators: CodLab: group the list view by modification date. */
++      label: C_("menu item", "Group By: Date Modified");
++      action: "view.raggruppa-per";
++      target: "data";
++      hidden-when: "action-disabled";
++    }
++
++    item {
++      /* Translators: CodLab: group the list view by file size. */
++      label: C_("menu item", "Group By: Size");
++      action: "view.raggruppa-per";
++      target: "dimensione";
++      hidden-when: "action-disabled";
++    }
++  }
++
+   section {
+     item {
+       label: _("Show _Hidden Files");

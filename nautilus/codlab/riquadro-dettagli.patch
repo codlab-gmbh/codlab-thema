@@ -1,0 +1,1439 @@
+CodLab (incremento 2 «Nautilus potente»): riquadro dettagli a destra.
+
+Explorer ha il «Riquadro dettagli» (Alt+P), Finder la colonna anteprima:
+Nautilus 51 non ha nulla a destra. Qui nasce NautilusDetailsPane, un
+pannello fisso affiancato alla vista file (Gtk.Box orizzontale dentro la
+finestra: lo split view sinistro con barra laterale e schede NON si tocca,
+la vista file si restringe). Mostra l'anteprima grande del file selezionato
+e i suoi metadati: tipo, dimensione, date, permessi; per le foto anche
+fotocamera, data di scatto e dimensioni in pixel; per i video durata e
+risoluzione.
+
+Attivazione: tasto Alt+P (F9 e' occupato da win.toggle-sidebar) e voce
+«Riquadro dettagli» nel menu principale; lo stato aperto/chiuso vive nella
+chiave `riquadro-dettagli` dello schema NOSTRO org.gnome.nautilus.codlab
+(default false). L'azione win.details-pane e' una GPropertyAction sulla
+proprieta' «revealed» del pane: la voce di menu porta la spunta e il tasto
+gira lo stato.
+
+Le lezioni di INC-1 (revisione del 31.10) sono dentro:
+  * senza schema CodLab (ritorno parziale al 1.6) Nautilus PARTE lo stesso:
+    il pane funziona di sessione (Alt+P e menu), senza persistenza; il
+    lookup dello schema e' quello gia' in nautilus_global_preferences_init;
+    mai un g_settings_new su schema assente, mai NULL dereferenziato.
+    Chiusura INC-2 (trovata rossa da una prova senza schema): non
+    basta lo schema ASSENTE — uno schema VECCHIO senza la chiave nuova
+    (un 1.7.1 residuo sotto /usr/share) faceva abortire lo stesso
+    (GLib-GIO-ERROR «does not contain a key»). Ora il lookup chiede
+    ANCHE g_settings_schema_has_key di entrambe le chiavi nostre: schema
+    incompleto -> istanza NULL -> comportamento di serie, rc 0;
+  * il template del pane NON ha callback: tutte le connessioni sono in C,
+    gtk_widget_class_bind_template_callback non serve — zero Gtk-CRITICAL
+    per costruzione;
+  * traduzioni italiane in po/it.po («Riquadro dettagli», «Fotocamera»,
+    «Scatto», «Dimensione totale», i plurali della selezione multipla);
+    Size/Modified/Created/Permissions/Dimensions/Duration esistevano gia';
+  * niente subprocess: EXIF con gexiv2 e durata/risoluzione con
+    GstDiscoverer, dentro un GTask di worker con GCancellable; ogni
+    risultato stantio (selezione cambiata, mtime cambiata) viene scartato;
+    ogni errore lascia via la riga, non la finestra. Le due librerie sono
+    gia' linkate dal binario nautilus di oggi (via libnautilus-extension:
+    rpm -q --requires nautilus) — nessuna dipendenza nuova.
+
+La selezione arriva dalla proprieta' «selection» dello slot attivo
+(window-slot: bind template.active-slot, come la barra laterale): il pane
+non tocca le view, che il cambio griglia/elenco ricrea. L'anteprima e' un
+NautilusImage — il widget della finestra Proprietà — con fallback
+paintable e sorgente glycin quando c'e' la miniatura. I formati dei
+metadati foto/video sono quelli delle colonne python gia' installate
+(colonne-foto.py / colonne-video.py): «2400x1600» con orientamento
+applicato, «2026-03-14 09:15», «Canon EOS R5», «0:03».
+
+Applicare con: patch -p1 < riquadro-dettagli.patch  (dentro nautilus-51.0.1
+con le cinque patch CodLab gia' applicate)
+
+diff -ruN a/data/org.gnome.nautilus.codlab.gschema.xml b/data/org.gnome.nautilus.codlab.gschema.xml
+--- a/data/org.gnome.nautilus.codlab.gschema.xml	2026-11-01 00:12:37.486232958 +0100
++++ b/data/org.gnome.nautilus.codlab.gschema.xml	2026-11-01 00:13:25.311635511 +0100
+@@ -12,5 +12,13 @@
+       “current folder / all subfolders” switch of Windows
+       Explorer. Set by the search popover “Depth” group.</description>
+     </key>
++    <key type="b" name="riquadro-dettagli">
++      <default>false</default>
++      <summary>Show the details pane</summary>
++      <description>When true, the window shows a right-hand details pane
++      with a large preview and the metadata of the selected file, like
++      the Explorer “Details pane” (Alt+P) and the Finder preview
++      column. Toggled by the Alt+P accelerator and the menu item.</description>
++    </key>
+   </schema>
+ </schemalist>
+diff -ruN a/meson.build b/meson.build
+--- a/meson.build	2026-09-15 01:11:52.000000000 +0200
++++ b/meson.build	2026-11-01 00:13:25.297635477 +0100
+@@ -132,11 +132,17 @@
+ selinux = dependency('libselinux', version: '>= 2.0', required: get_option('selinux'))
+ cloudproviders = dependency('cloudproviders', version: '>= 0.3.1', required: get_option('cloudproviders'))
+ if get_option('extensions')
+-  gexiv = dependency('gexiv2-0.16', version: '>= 0.16.0')
+   gdkpixbuf = dependency('gdk-pixbuf-2.0', version: '>= 2.30.0')
+   gst_tag_dep = dependency('gstreamer-tag-1.0')
+-  gst_pbutils_dep = dependency('gstreamer-pbutils-1.0')
+ endif
++# CodLab (INC-2 «Nautilus potente»): il riquadro dettagli legge l'EXIF delle
++# foto (gexiv2) e durata/risoluzione dei video (gstreamer pbutils) nel
++# binario principale. Prima arrivavano solo via libnautilus-extension: il
++# binario nautilus le linka GIA' oggi (rpm -q --requires), ora le usiamo
++# anche dal sorgente nostro.
++gexiv = dependency('gexiv2-0.16', version: '>= 0.16.0')
++gst_dep = dependency('gstreamer-1.0')
++gst_pbutils_dep = dependency('gstreamer-pbutils-1.0')
+ 
+ ####################
+ # End dependencies #
+diff -ruN a/po/it.po b/po/it.po
+--- a/po/it.po	2026-11-01 00:12:37.491814812 +0100
++++ b/po/it.po	2026-11-01 00:13:52.489701399 +0100
+@@ -5509,6 +5509,35 @@
+ msgid "Descend into subfolders (as before)"
+ msgstr "Scende nelle sottocartelle (come prima)"
+ 
++# CodLab (INC-2 «Nautilus potente», 31.10.2026): riquadro dettagli a destra.
++# Le didascalie Size/Modified/Created/Permissions/Dimensions/Duration esistono
++# gia' sopra con le loro traduzioni: qui solo le stringhe nuove del pane.
++#: src/resources/ui/nautilus-window.blp:41
++msgid "Show _Details Pane"
++msgstr "Riquadro _dettagli"
++
++#: src/nautilus-details-pane.c
++msgid "Select an item to see its details"
++msgstr "Seleziona un elemento per vederne i dettagli"
++
++#: src/nautilus-details-pane.c
++msgid "Camera"
++msgstr "Fotocamera"
++
++#: src/nautilus-details-pane.c
++msgid "Date Taken"
++msgstr "Scatto"
++
++#: src/nautilus-details-pane.c
++msgid "Total size"
++msgstr "Dimensione totale"
++
++#: src/nautilus-details-pane.c
++msgid "%u item selected"
++msgid_plural "%u items selected"
++msgstr[0] "%u elemento selezionato"
++msgstr[1] "%u elementi selezionati"
++
+ #: src/resources/ui/nautilus-search-types-dialog.blp:5
+ msgid "Add File Type Filter"
+ msgstr "Aggiungi filtro per tipo di file"
+diff -ruN a/src/meson.build b/src/meson.build
+--- a/src/meson.build	2026-09-15 01:11:52.000000000 +0200
++++ b/src/meson.build	2026-11-01 00:13:25.291635462 +0100
+@@ -86,6 +86,8 @@
+   'nautilus-dbus-launcher.h',
+   'nautilus-dbus-manager.c',
+   'nautilus-dbus-manager.h',
++  'nautilus-details-pane.c',
++  'nautilus-details-pane.h',
+   'nautilus-dialog-utilities.c',
+   'nautilus-dialog-utilities.h',
+   'nautilus-directory.c',
+@@ -298,6 +300,9 @@
+   gmodule,
+   gnome_autoar,
+   gnome_desktop,
++  gst_dep,
++  gst_pbutils_dep,
++  gexiv,
+   icu_dep,
+   icu_i18n_dep,
+   libadwaita,
+diff -ruN a/src/nautilus-details-pane.c b/src/nautilus-details-pane.c
+--- a/src/nautilus-details-pane.c	1970-01-01 01:00:00.000000000 +0100
++++ b/src/nautilus-details-pane.c	2026-11-01 04:01:22.690329213 +0100
+@@ -0,0 +1,840 @@
++/*
++ * CodLab — incremento 2 «Nautilus potente»: riquadro dettagli (implementazione).
++ *
++ * Pannello fisso a destra: anteprima grande (NautilusImage, la glycin della
++ * finestra Proprietà riusata tale e quale) e metadati del file selezionato.
++ * La selezione arriva dalla proprietà «selection» dello slot attivo
++ * (bind template.active-slot, come la barra laterale): niente connessioni
++ * dirette alla view, che il cambio grid/elenco ricrea.
++ *
++ * I metadati foto/video si leggono in un GTask di worker: EXIF con gexiv2
++ * (stessi campi e stessi formati di colonne-foto.py dell'INC-1: dimensioni
++ * «WxH» con orientamento applicato, scatto «YYYY-MM-DD HH:MM», fotocamera
++ * «Marca Modello»), durata e risoluzione dei video con GstDiscoverer. Sono
++ * librerie che il binario nautilus GIÀ linka oggi (via libnautilus-extension:
++ * rpm -q --requires nautilus): nessuna dipendenza nuova, nessun subprocess.
++ * Ogni risultato stantio (selezione cambiata mentre il worker girava) viene
++ * scartato; ogni errore lascia semplicemente via la riga, mai un crash.
++ *
++ * Il template (nautilus-details-pane.blp) NON ha callback: tutte le
++ * connessioni sono qui in C, gtk_widget_class_bind_template_callback non
++ * serve (lezione 2 di INC-1: zero Gtk-CRITICAL garantiti per costruzione).
++ */
++#include "nautilus-details-pane.h"
++
++#include <glib/gi18n.h>
++
++#include "nautilus-file.h"
++#include "nautilus-global-preferences.h"
++#include "nautilus-image.h"
++#include "nautilus-window-slot.h"
++
++#include <gexiv2/gexiv2.h>
++#include <gst/gst.h>
++#include <gst/pbutils/pbutils.h>
++
++/* Larghezza del riquadro, fissa come la colonna anteprima di Finder. */
++#define DETAILS_PANE_WIDTH 320
++/* Dimensione dell'anteprima caduta (la stessa sorgente delle miniature). */
++#define DETAILS_PANE_ICON_SIZE 256
++/* Il «changed» del file arriva a raffica: si raggruppa come fa la finestra
++ * delle proprietà (FILES_UPDATE_INTERVAL). */
++#define DETAILS_CHANGED_INTERVAL_MS 400
++/* Quanto lasciare lavorare GstDiscoverer prima di arrendersi. */
++#define DETAILS_DISCOVER_TIMEOUT_S 5
++
++struct _NautilusDetailsPane
++{
++    AdwBin parent_instance;
++
++    GtkWidget *preview;
++    GtkWidget *name_label;
++    GtkWidget *kind_label;
++    GtkWidget *hint_label;
++    GtkWidget *metadata_box;
++
++    NautilusWindowSlot *slot;
++    GSignalGroup *slot_signal_group;
++
++    GList *files;             /* NautilusFile della selezione (con ref) */
++    NautilusFile *monitored;  /* primo file, monitorato per i «changed» */
++    guint changed_timeout_id;
++
++    GCancellable *metadata_cancellable;
++    gchar *metadata_uri;      /* uri atteso quando il worker finisce */
++    time_t metadata_mtime;
++
++    gboolean revealed;
++};
++
++enum
++{
++    PROP_0,
++    PROP_WINDOW_SLOT,
++    PROP_REVEALED,
++    N_PROPS,
++};
++
++static GParamSpec *properties[N_PROPS];
++
++static void refresh_selection (NautilusDetailsPane *self);
++static void cancel_metadata (NautilusDetailsPane *self);
++static void clear_files (NautilusDetailsPane *self);
++static void file_changed (NautilusFile *file, gpointer user_data);
++static void start_metadata_task (NautilusDetailsPane *self,
++                                 NautilusFile        *file,
++                                 gboolean             is_video);
++void details_pane_add_row (NautilusDetailsPane *self,
++                           const gchar         *caption,
++                           const gchar         *value);
++
++G_DEFINE_FINAL_TYPE (NautilusDetailsPane, nautilus_details_pane, ADW_TYPE_BIN)
++
++/* ------------------------------------------------------------------ */
++/* Dati e risultato del worker dei metadati foto/video                  */
++/* ------------------------------------------------------------------ */
++
++typedef struct
++{
++    gchar *uri;
++    gchar *path;      /* serve a gexiv2: percorso locale, NULL se remoto */
++    time_t mtime;
++    gboolean is_video;
++} MetadataTaskData;
++
++typedef struct
++{
++    gchar *camera;
++    gchar *taken;
++    gchar *dimensions;
++    gchar *duration;
++} MetadataResult;
++
++static void
++metadata_task_data_free (MetadataTaskData *data)
++{
++    g_clear_pointer (&data->uri, g_free);
++    g_clear_pointer (&data->path, g_free);
++    g_free (data);
++}
++
++static void
++metadata_result_free (MetadataResult *result)
++{
++    if (result == NULL)
++    {
++        return;
++    }
++    g_clear_pointer (&result->camera, g_free);
++    g_clear_pointer (&result->taken, g_free);
++    g_clear_pointer (&result->dimensions, g_free);
++    g_clear_pointer (&result->duration, g_free);
++    g_free (result);
++}
++
++/* lettura di un tag EXIF come stringa: NULL se manca (gexiv2 vuole
++ * GError**, un tag assente non e' un errore nostro) */
++static gchar *
++read_tag_string (GExiv2Metadata *metadata,
++                 const gchar    *tag)
++{
++    g_autofree gchar *value = gexiv2_metadata_get_tag_string (metadata, tag, NULL);
++    if (value == NULL || *value == '\0')
++    {
++        return NULL;
++    }
++    return g_steal_pointer (&value);
++}
++
++/* «2026:03:14 09:15:00» -> «2026-03-14 09:15», come colonne-foto.py */
++static gchar *
++normalize_taken (const gchar *raw)
++{
++    if (raw == NULL || strlen (raw) < 16 || raw[4] != ':' || raw[7] != ':')
++    {
++        return NULL;
++    }
++    gchar *out = g_strndup (raw, 16);
++    out[4] = '-';
++    out[7] = '-';
++    return out;
++}
++
++/* «Canon» + «EOS R5» -> «Canon EOS R5»; se il modello inizia con la marca
++ * resta il modello solo (stessa logica di colonne-foto.py). */
++static gchar *
++compose_camera (const gchar *make,
++                const gchar *model)
++{
++    if (make == NULL || *make == '\0')
++    {
++        return g_strdup (model);
++    }
++    if (model == NULL || *model == '\0')
++    {
++        return g_strdup (make);
++    }
++    if (g_str_has_prefix (model, make))
++    {
++        return g_strdup (model);
++    }
++    return g_strdup_printf ("%s %s", make, model);
++}
++
++/* 5..8 = orientamenti che scambiano gli assi: un ritratto dice 1600x2400
++ * (stessa logica di colonne-foto.py). */
++static gboolean
++orientation_swaps_axes (const gchar *orientation)
++{
++    gint64 value = g_ascii_strtoll (orientation != NULL ? orientation : "1", NULL, 10);
++    return value >= 5 && value <= 8;
++}
++
++/* «61 s» -> «1:01», «3661 s» -> «1:01:01» (stesso formato di
++ * colonne-video.py: minuti:secondi, ore davanti solo se servono). */
++static gchar *
++format_duration (guint64 seconds)
++{
++    if (seconds >= 3600)
++    {
++        return g_strdup_printf ("%" G_GUINT64_FORMAT ":%02" G_GUINT64_FORMAT
++                                ":%02" G_GUINT64_FORMAT,
++                                seconds / 3600, (seconds % 3600) / 60, seconds % 60);
++    }
++    return g_strdup_printf ("%" G_GUINT64_FORMAT ":%02" G_GUINT64_FORMAT,
++                            seconds / 60, seconds % 60);
++}
++
++static gpointer
++ensure_gst_once (gpointer user_data)
++{
++    if (!gst_is_initialized ())
++    {
++        gst_init (NULL, NULL);
++    }
++    return NULL;
++}
++
++static void
++read_photo_metadata (MetadataTaskData *data,
++                     MetadataResult  *result)
++{
++    GError *error = NULL;
++    g_autoptr (GExiv2Metadata) metadata = gexiv2_metadata_new ();
++
++    if (metadata == NULL)
++    {
++        return;
++    }
++    if (data->path == NULL || !gexiv2_metadata_open_path (metadata, data->path, &error))
++    {
++        /* file remoto, non leggibile, EXIF assente o formato che exiv2 non
++         * parla: niente righe foto, ma niente nemmeno da segnalare */
++        g_clear_error (&error);
++        return;
++    }
++
++    g_autofree gchar *make = read_tag_string (metadata, "Exif.Image.Make");
++    g_autofree gchar *model = read_tag_string (metadata, "Exif.Image.Model");
++    g_autofree gchar *orientation = read_tag_string (metadata, "Exif.Image.Orientation");
++    g_autofree gchar *taken_raw = read_tag_string (metadata, "Exif.Photo.DateTimeOriginal");
++    if (taken_raw == NULL)
++    {
++        taken_raw = read_tag_string (metadata, "Exif.Image.DateTime");
++    }
++
++    if (make != NULL) g_strstrip (make);
++    if (model != NULL) g_strstrip (model);
++
++    /* read_tag_string restituisce NULL quando il tag non c'e': un'immagine
++     * senza EXIF (PNG piatto, JPEG spogliato) non deve dereferenziarlo
++     * (rilievo R1 della revisione: SIGSEGV 139 anche a pannello chiuso) */
++    result->camera = compose_camera (make != NULL && *make != '\0' ? make : NULL,
++                                     model != NULL && *model != '\0' ? model : NULL);
++    result->taken = normalize_taken (taken_raw);
++
++    /* le dimensioni si leggono dai tag PixelX/PixelY del SUB-IFD (quello
++     * che leggono le colonne foto di INC-1), con le dimensioni strutturali
++     * di gexiv2 come risvolto per i file senza quei tag */
++    gint width = 0;
++    gint height = 0;
++    g_autofree gchar *pixel_x = read_tag_string (metadata, "Exif.Photo.PixelXDimension");
++    g_autofree gchar *pixel_y = read_tag_string (metadata, "Exif.Photo.PixelYDimension");
++    if (pixel_x != NULL && pixel_y != NULL)
++    {
++        width = (gint) g_ascii_strtoll (pixel_x, NULL, 10);
++        height = (gint) g_ascii_strtoll (pixel_y, NULL, 10);
++    }
++    else
++    {
++        width = gexiv2_metadata_get_pixel_width (metadata);
++        height = gexiv2_metadata_get_pixel_height (metadata);
++    }
++    if (width > 0 && height > 0)
++    {
++        gint x = width;
++        gint y = height;
++        if (orientation_swaps_axes (orientation))
++        {
++            x = height;
++            y = width;
++        }
++        result->dimensions = g_strdup_printf ("%dx%d", x, y);
++    }
++}
++
++static void
++read_video_metadata (MetadataTaskData *data,
++                     MetadataResult  *result)
++{
++    GError *error = NULL;
++    static GOnce gst_once = G_ONCE_INIT;
++
++    g_once (&gst_once, ensure_gst_once, NULL);
++
++    g_autoptr (GstDiscoverer) discoverer = gst_discoverer_new (
++        DETAILS_DISCOVER_TIMEOUT_S * GST_SECOND, &error);
++    if (discoverer == NULL)
++    {
++        g_clear_error (&error);
++        return;
++    }
++
++    g_autoptr (GstDiscovererInfo) info =
++        gst_discoverer_discover_uri (discoverer, data->uri, &error);
++    if (info == NULL)
++    {
++        /* file rotto, codec senza demuxer, timeout: solo righe assenti */
++        g_clear_error (&error);
++        return;
++    }
++
++    const guint64 duration_ns = gst_discoverer_info_get_duration (info);
++    if (duration_ns != 0 && duration_ns != GST_CLOCK_TIME_NONE &&
++        duration_ns >= GST_SECOND)
++    {
++        result->duration = format_duration (duration_ns / GST_SECOND);
++    }
++
++    GList *video_streams = (GList *) gst_discoverer_info_get_video_streams (info);
++    if (video_streams != NULL)
++    {
++        const guint width = gst_discoverer_video_info_get_width (video_streams->data);
++        const guint height = gst_discoverer_video_info_get_height (video_streams->data);
++        if (width > 0 && height > 0)
++        {
++            result->dimensions = g_strdup_printf ("%ux%u", width, height);
++        }
++        gst_discoverer_stream_info_list_free (video_streams);
++    }
++}
++
++static void
++metadata_task_worker (GTask        *task,
++                      gpointer      source_object,
++                      gpointer      task_data,
++                      GCancellable *cancellable)
++{
++    MetadataTaskData *data = task_data;
++    MetadataResult *result = g_new0 (MetadataResult, 1);
++
++    if (g_task_return_error_if_cancelled (task))
++    {
++        metadata_result_free (result);
++        return;
++    }
++
++    if (data->is_video)
++    {
++        read_video_metadata (data, result);
++    }
++    else
++    {
++        read_photo_metadata (data, result);
++    }
++
++    g_task_return_pointer (task, result, (GDestroyNotify) metadata_result_free);
++}
++
++static void
++metadata_task_done (GObject      *source_object,
++                    GAsyncResult *result,
++                    gpointer      user_data)
++{
++    NautilusDetailsPane *self = NAUTILUS_DETAILS_PANE (user_data);
++    GError *error = NULL;
++    MetadataResult *metadata = g_task_propagate_pointer (G_TASK (result), &error);
++
++    if (metadata == NULL)
++    {
++        /* annullato: la selezione e' cambiata mentre il worker girava, o la
++         * finestra e' stata chiusa: il risultato non e' piu' di nessuno */
++        g_clear_error (&error);
++        return;
++    }
++
++    /* risultato stantio: il file monitorato ora e' un altro (uri o mtime
++     * diversi da quelli che il worker ha letto): si scarta */
++    if (self->monitored != NULL && self->metadata_uri != NULL)
++    {
++        g_autofree gchar *uri = nautilus_file_get_uri (self->monitored);
++        if (g_strcmp0 (uri, self->metadata_uri) == 0 &&
++            nautilus_file_get_mtime (self->monitored) == self->metadata_mtime)
++        {
++            if (metadata->camera != NULL)
++            {
++                details_pane_add_row (self, _("Camera"), metadata->camera);
++            }
++            if (metadata->taken != NULL)
++            {
++                details_pane_add_row (self, _("Date Taken"), metadata->taken);
++            }
++            if (metadata->dimensions != NULL)
++            {
++                details_pane_add_row (self, _("Dimensions"), metadata->dimensions);
++            }
++            if (metadata->duration != NULL)
++            {
++                details_pane_add_row (self, _("Duration"), metadata->duration);
++            }
++        }
++    }
++
++    metadata_result_free (metadata);
++}
++
++static void
++start_metadata_task (NautilusDetailsPane *self,
++                     NautilusFile        *file,
++                     gboolean             is_video)
++{
++    g_autoptr (GFile) location = nautilus_file_get_location (file);
++    g_autofree gchar *path = g_file_get_path (location);
++
++    /* remoto o non ancora risolvibile: EXIF non si legge, le righe base
++     * (tipo, dimensione, date, permessi) restano e sono gia' al loro posto */
++    if (!is_video && path == NULL)
++    {
++        return;
++    }
++
++    cancel_metadata (self);
++
++    MetadataTaskData *data = g_new0 (MetadataTaskData, 1);
++    data->uri = nautilus_file_get_uri (file);
++    data->path = g_strdup (path);
++    data->mtime = nautilus_file_get_mtime (file);
++    data->is_video = is_video;
++
++    self->metadata_cancellable = g_cancellable_new ();
++    self->metadata_uri = g_strdup (data->uri);
++    self->metadata_mtime = data->mtime;
++
++    GTask *task = g_task_new (self, self->metadata_cancellable,
++                              metadata_task_done, self);
++    g_task_set_task_data (task, data, (GDestroyNotify) metadata_task_data_free);
++    g_task_run_in_thread (task, metadata_task_worker);
++    g_object_unref (task);
++}
++
++/* ------------------------------------------------------------------ */
++/* Rendering                                                            */
++/* ------------------------------------------------------------------ */
++
++void
++details_pane_add_row (NautilusDetailsPane *self,
++                      const gchar         *caption,
++                      const gchar         *value)
++{
++    GtkWidget *row = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 12);
++    GtkWidget *caption_label = gtk_label_new (caption);
++    GtkWidget *value_label = gtk_label_new (value);
++
++    gtk_label_set_wrap (GTK_LABEL (caption_label), TRUE);
++    gtk_label_set_xalign (GTK_LABEL (caption_label), 0.0);
++    gtk_widget_add_css_class (caption_label, "dim-label");
++
++    gtk_label_set_wrap (GTK_LABEL (value_label), TRUE);
++    gtk_label_set_xalign (GTK_LABEL (value_label), 1.0);
++    gtk_widget_set_hexpand (value_label, TRUE);
++
++    gtk_box_append (GTK_BOX (row), caption_label);
++    gtk_box_append (GTK_BOX (row), value_label);
++    gtk_box_append (GTK_BOX (self->metadata_box), row);
++}
++
++static void
++clear_metadata_rows (NautilusDetailsPane *self)
++{
++    GtkWidget *child = gtk_widget_get_first_child (self->metadata_box);
++    while (child != NULL)
++    {
++        GtkWidget *next = gtk_widget_get_next_sibling (child);
++        gtk_box_remove (GTK_BOX (self->metadata_box), child);
++        child = next;
++    }
++}
++
++static void
++cancel_metadata (NautilusDetailsPane *self)
++{
++    if (self->metadata_cancellable != NULL)
++    {
++        g_cancellable_cancel (self->metadata_cancellable);
++        g_clear_object (&self->metadata_cancellable);
++    }
++    g_clear_pointer (&self->metadata_uri, g_free);
++}
++
++static void
++clear_files (NautilusDetailsPane *self)
++{
++    cancel_metadata (self);
++
++    if (self->changed_timeout_id != 0)
++    {
++        g_source_remove (self->changed_timeout_id);
++        self->changed_timeout_id = 0;
++    }
++    if (self->monitored != NULL)
++    {
++        g_signal_handlers_disconnect_by_func (self->monitored,
++                                              G_CALLBACK (file_changed),
++                                              self);
++        nautilus_file_monitor_remove (self->monitored, &self->files);
++        g_clear_object (&self->monitored);
++    }
++    g_clear_pointer (&self->files, nautilus_file_list_free);
++}
++
++static gboolean
++refresh_from_changed (NautilusDetailsPane *self)
++{
++    self->changed_timeout_id = 0;
++    refresh_selection (self);
++    return G_SOURCE_REMOVE;
++}
++
++static void
++file_changed (NautilusFile *file,
++              gpointer      user_data)
++{
++    NautilusDetailsPane *self = NAUTILUS_DETAILS_PANE (user_data);
++
++    if (self->changed_timeout_id == 0)
++    {
++        self->changed_timeout_id = g_timeout_add (DETAILS_CHANGED_INTERVAL_MS,
++                                                  G_SOURCE_FUNC (refresh_from_changed),
++                                                  self);
++    }
++}
++
++static void
++render_multiple (NautilusDetailsPane *self,
++                 guint                n_items)
++{
++    g_autofree gchar *title = g_strdup_printf (
++        ngettext ("%u item selected", "%u items selected", n_items), n_items);
++
++    gtk_label_set_text (GTK_LABEL (self->name_label), title);
++    gtk_label_set_text (GTK_LABEL (self->kind_label), "");
++
++    /* selezione multipla: via l'anteprima e il tipo del file SINGOLO
++     * precedente (rilievo R5 della revisione: la miniatura vecchia
++     * restava sopra «N elementi selezionati»). refresh_selection li
++     * rimette visibili quando torna la selezione singola. */
++    gtk_widget_set_visible (self->preview, FALSE);
++    gtk_widget_set_visible (self->kind_label, FALSE);
++
++    goffset total = 0;
++    gboolean any_size = FALSE;
++    for (GList *l = self->files; l != NULL; l = l->next)
++    {
++        NautilusFile *file = NAUTILUS_FILE (l->data);
++        if (!nautilus_file_is_directory (file))
++        {
++            total += nautilus_file_get_size (file);
++            any_size = TRUE;
++        }
++    }
++    if (any_size)
++    {
++        g_autofree gchar *size = g_format_size (total);
++        details_pane_add_row (self, _("Total size"), size);
++    }
++}
++
++static void
++render_single (NautilusDetailsPane *self)
++{
++    NautilusFile *file = NAUTILUS_FILE (self->files->data);
++    const gint scale = gtk_widget_get_scale_factor (GTK_WIDGET (self));
++    const NautilusFileIconFlags flags =
++        NAUTILUS_FILE_ICON_FLAGS_USE_THUMBNAILS |
++        NAUTILUS_FILE_ICON_FLAGS_USE_MOUNT_ICON;
++
++    /* la stringa di get_string_attribute e' NOSTRA (char *: il chiamante
++     * la possiede, nautilus-file.h:352) — difetto F3: prima si perdeva
++     * a ogni aggiornamento delle righe */
++    g_autofree gchar *kind =
++        nautilus_file_get_string_attribute (file, "detailed_type");
++    gtk_label_set_text (GTK_LABEL (self->name_label),
++                        nautilus_file_get_display_name (file));
++    gtk_label_set_text (GTK_LABEL (self->kind_label),
++                        kind != NULL ? kind : "");
++    gtk_widget_set_visible (self->preview, TRUE);
++    gtk_widget_set_visible (self->kind_label, TRUE);
++
++    /* anteprima: il gesto della finestra Proprietà, identico */
++    g_autoptr (GdkPaintable) paintable =
++        nautilus_file_get_icon_paintable (file, DETAILS_PANE_ICON_SIZE, scale, flags);
++    nautilus_image_set_fallback (NAUTILUS_IMAGE (self->preview), paintable);
++    if (nautilus_file_should_show_thumbnail (file))
++    {
++        g_autoptr (GFile) location = nautilus_file_get_location (file);
++        nautilus_image_set_source (NAUTILUS_IMAGE (self->preview), location);
++    }
++    else
++    {
++        nautilus_image_set_source (NAUTILUS_IMAGE (self->preview), NULL);
++    }
++
++    /* righe base: ogni attributo e' gia' localizzato da Nautilus; le righe
++     * senza valore (dimensione di una cartella a conteggio spento, data di
++     * creazione sconosciuta) semplicemente non ci sono */
++    const struct
++    {
++        const gchar *attribute;
++        const gchar *caption;
++    } base_rows[] = {
++        { "size", N_("Size") },
++        { "date_modified", N_("Modified") },
++        { "date_created", N_("Created") },
++        { "permissions", N_("Permissions") },
++    };
++    for (gsize i = 0; i < G_N_ELEMENTS (base_rows); i++)
++    {
++        g_autofree gchar *value =
++            nautilus_file_get_string_attribute (file, base_rows[i].attribute);
++        if (value != NULL && *value != '\0')
++        {
++            details_pane_add_row (self, gettext (base_rows[i].caption), value);
++        }
++    }
++
++    /* monitor: i «changed» del file rifanno il rendering (miniatura che
++     * arriva, attributi che si completano) */
++    self->monitored = g_object_ref (file);
++    nautilus_file_monitor_add (file, &self->files,
++                               NAUTILUS_ATTRIBUTE_THUMBNAIL_BUFFER);
++    g_signal_connect (file, "changed", G_CALLBACK (file_changed), self);
++
++    /* righe foto/video in un worker: EXIF con gexiv2, durata/risoluzione
++     * con GstDiscoverer (stessi formati di colonne-foto/colonne-video) */
++    const gchar *mime_type = nautilus_file_get_mime_type (file);
++    if (mime_type != NULL)
++    {
++        if (g_str_has_prefix (mime_type, "image/"))
++        {
++            start_metadata_task (self, file, FALSE);
++        }
++        else if (g_str_has_prefix (mime_type, "video/"))
++        {
++            start_metadata_task (self, file, TRUE);
++        }
++    }
++}
++
++static void
++refresh_selection (NautilusDetailsPane *self)
++{
++    clear_files (self);
++    clear_metadata_rows (self);
++
++    GList *selection = (self->slot != NULL)
++                       ? nautilus_window_slot_get_selection (self->slot)
++                       : NULL;
++    const guint n_items = g_list_length (selection);
++
++    const gboolean empty = (n_items == 0);
++    gtk_widget_set_visible (self->hint_label, empty);
++    gtk_widget_set_visible (self->preview, !empty);
++    gtk_widget_set_visible (self->name_label, !empty);
++    gtk_widget_set_visible (self->kind_label, !empty);
++    gtk_widget_set_visible (self->metadata_box, !empty);
++
++    if (empty)
++    {
++        gtk_label_set_text (GTK_LABEL (self->name_label), "");
++        gtk_label_set_text (GTK_LABEL (self->kind_label), "");
++        return;
++    }
++
++    self->files = nautilus_file_list_copy (selection);
++
++    if (n_items > 1)
++    {
++        render_multiple (self, n_items);
++        return;
++    }
++
++    render_single (self);
++}
++
++/* ------------------------------------------------------------------ */
++/* GObject                                                              */
++/* ------------------------------------------------------------------ */
++
++static void
++nautilus_details_pane_get_property (GObject    *object,
++                                    guint       property_id,
++                                    GValue     *value,
++                                    GParamSpec *pspec)
++{
++    NautilusDetailsPane *self = NAUTILUS_DETAILS_PANE (object);
++
++    switch (property_id)
++    {
++        case PROP_REVEALED:
++        {
++            g_value_set_boolean (value, self->revealed);
++        }
++        break;
++
++        default:
++        {
++            G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
++        }
++        break;
++    }
++}
++
++static void
++nautilus_details_pane_set_property (GObject      *object,
++                                    guint         property_id,
++                                    const GValue *value,
++                                    GParamSpec   *pspec)
++{
++    NautilusDetailsPane *self = NAUTILUS_DETAILS_PANE (object);
++
++    switch (property_id)
++    {
++        case PROP_WINDOW_SLOT:
++        {
++            NautilusWindowSlot *slot = NAUTILUS_WINDOW_SLOT (g_value_get_object (value));
++            if (g_set_object (&self->slot, slot))
++            {
++                g_signal_group_set_target (self->slot_signal_group, slot);
++                refresh_selection (self);
++            }
++        }
++        break;
++
++        case PROP_REVEALED:
++        {
++            const gboolean revealed = g_value_get_boolean (value);
++            if (self->revealed != revealed)
++            {
++                self->revealed = revealed;
++                gtk_widget_set_visible (GTK_WIDGET (self), revealed);
++                /* lo schema nostro vive in un pacchetto a parte: se manca
++                 * (ritorno parziale) il pane funziona lo stesso di sessione,
++                 * senza persistenza e senza dereferenziare NULL */
++                if (nautilus_codlab_preferences != NULL)
++                {
++                    g_settings_set_boolean (
++                        nautilus_codlab_preferences,
++                        NAUTILUS_CODELAB_PREFERENCES_RIQUADRO_DETTAGLI,
++                        revealed);
++                }
++                g_object_notify_by_pspec (G_OBJECT (self), properties[PROP_REVEALED]);
++            }
++        }
++        break;
++
++        default:
++        {
++            G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
++        }
++        break;
++    }
++}
++
++static void
++nautilus_details_pane_dispose (GObject *object)
++{
++    NautilusDetailsPane *self = NAUTILUS_DETAILS_PANE (object);
++
++    clear_files (self);
++    g_clear_object (&self->slot_signal_group);
++    g_clear_object (&self->slot);
++
++    G_OBJECT_CLASS (nautilus_details_pane_parent_class)->dispose (object);
++}
++
++static void
++nautilus_details_pane_class_init (NautilusDetailsPaneClass *klass)
++{
++    GObjectClass *object_class = G_OBJECT_CLASS (klass);
++    GtkWidgetClass *widget_class = GTK_WIDGET_CLASS (klass);
++
++    object_class->get_property = nautilus_details_pane_get_property;
++    object_class->set_property = nautilus_details_pane_set_property;
++    object_class->dispose = nautilus_details_pane_dispose;
++
++    properties[PROP_WINDOW_SLOT] =
++        g_param_spec_object ("window-slot", NULL, NULL,
++                             NAUTILUS_TYPE_WINDOW_SLOT,
++                             G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS);
++
++    properties[PROP_REVEALED] =
++        g_param_spec_boolean ("revealed", NULL, NULL,
++                              FALSE,
++                              G_PARAM_READWRITE | G_PARAM_EXPLICIT_NOTIFY |
++                              G_PARAM_STATIC_STRINGS);
++    g_object_class_install_properties (object_class, N_PROPS, properties);
++
++    gtk_widget_class_set_template_from_resource (
++        widget_class, "/org/gnome/nautilus/ui/nautilus-details-pane.ui");
++
++    /* NautilusImage sta nel template: il suo GType va registrato prima
++     * dell'init (stesso gesto di grid-cell, name-cell e properties) */
++    g_type_ensure (NAUTILUS_TYPE_IMAGE);
++
++    gtk_widget_class_bind_template_child (widget_class, NautilusDetailsPane, preview);
++    gtk_widget_class_bind_template_child (widget_class, NautilusDetailsPane, name_label);
++    gtk_widget_class_bind_template_child (widget_class, NautilusDetailsPane, kind_label);
++    gtk_widget_class_bind_template_child (widget_class, NautilusDetailsPane, hint_label);
++    gtk_widget_class_bind_template_child (widget_class, NautilusDetailsPane, metadata_box);
++    /* Nessun gtk_widget_class_bind_template_callback serve qui: il template
++     * non ha handler (lezione 2 di INC-1). */
++}
++
++static void
++nautilus_details_pane_init (NautilusDetailsPane *self)
++{
++    gtk_widget_init_template (GTK_WIDGET (self));
++
++    /* lo stato ricordato: la chiave nostra, se lo schema c'e' (il lookup
++     * e' gia' stato fatto da nautilus_global_preferences_init) */
++    if (nautilus_codlab_preferences != NULL)
++    {
++        self->revealed = g_settings_get_boolean (
++            nautilus_codlab_preferences,
++            NAUTILUS_CODELAB_PREFERENCES_RIQUADRO_DETTAGLI);
++    }
++    gtk_widget_set_visible (GTK_WIDGET (self), self->revealed);
++
++    self->slot_signal_group = g_signal_group_new (NAUTILUS_TYPE_WINDOW_SLOT);
++    g_signal_group_connect_object (self->slot_signal_group, "notify::selection",
++                                   G_CALLBACK (refresh_selection),
++                                   self, G_CONNECT_SWAPPED);
++
++    refresh_selection (self);
++}
++
++GtkWidget *
++nautilus_details_pane_new (void)
++{
++    return g_object_new (NAUTILUS_TYPE_DETAILS_PANE, NULL);
++}
+diff -ruN a/src/nautilus-details-pane.h b/src/nautilus-details-pane.h
+--- a/src/nautilus-details-pane.h	1970-01-01 01:00:00.000000000 +0100
++++ b/src/nautilus-details-pane.h	2026-11-01 00:13:25.316635523 +0100
+@@ -0,0 +1,31 @@
++/*
++ * CodLab — incremento 2 «Nautilus potente»: riquadro dettagli.
++ *
++ * NautilusDetailsPane: pannello fisso a destra della vista file, come il
++ * «Riquadro dettagli» di Explorer (Alt+P) e la colonna anteprima di Finder.
++ * Mostra l'anteprima grande del file selezionato e i suoi metadati
++ * (dimensioni, date, permessi; per foto anche fotocamera/data di
++ * scatto/dimensioni in pixel, per video durata e risoluzione).
++ *
++ * Lo stato aperto/chiuso vive nella chiave «riquadro-dettagli» dello schema
++ * NOSTRO org.gnome.nautilus.codlab; se lo schema manca (pacchetto a parte
++ * rimosso) il pane funziona lo stesso di sessione, senza persistenza e
++ * senza mai dereferenziare NULL.
++ */
++#pragma once
++
++#include <gtk/gtk.h>
++#include <adwaita.h>
++
++#include "nautilus-types.h"
++
++G_BEGIN_DECLS
++
++#define NAUTILUS_TYPE_DETAILS_PANE (nautilus_details_pane_get_type ())
++
++G_DECLARE_FINAL_TYPE (NautilusDetailsPane, nautilus_details_pane,
++                      NAUTILUS, DETAILS_PANE, AdwBin)
++
++GtkWidget *nautilus_details_pane_new (void);
++
++G_END_DECLS
+diff -ruN a/src/nautilus-global-preferences.c b/src/nautilus-global-preferences.c
+--- a/src/nautilus-global-preferences.c	2026-11-01 00:12:37.486297396 +0100
++++ b/src/nautilus-global-preferences.c	2026-11-01 00:54:34.684657955 +0100
+@@ -109,7 +109,18 @@
+                                              NAUTILUS_CODELAB_PREFERENCES_SCHEMA,
+                                              TRUE);
+ 
+-        if (schema_codlab != NULL)
++        /* CodLab (INC-2): non basta lo schema: serve che abbia ENTRAMBE le
++         * chiavi nostre. Un RPM vecchio (o un sandbox con il solo 1.7.1
++         * sotto /usr/share) lascia lo schema SENZA riquadro-dettagli:
++         * g_settings_get_boolean su una chiave assente e' GLib-GIO-ERROR,
++         * rc 134 — trovato rosso dalla prova inc2-senza-schema. Con lo
++         * schema incompleto l'istanza resta NULL: ricerca e riquadro
++         * tornano ai comportamenti di serie, mai un abort. */
++        if (schema_codlab != NULL &&
++            g_settings_schema_has_key (schema_codlab,
++                                       NAUTILUS_CODELAB_PREFERENCES_RICERCA_SOLO_QUI) &&
++            g_settings_schema_has_key (schema_codlab,
++                                       NAUTILUS_CODELAB_PREFERENCES_RIQUADRO_DETTAGLI))
+         {
+             nautilus_codlab_preferences = g_settings_new (NAUTILUS_CODELAB_PREFERENCES_SCHEMA);
+         }
+diff -ruN a/src/nautilus-global-preferences.h b/src/nautilus-global-preferences.h
+--- a/src/nautilus-global-preferences.h	2026-11-01 00:12:37.487617370 +0100
++++ b/src/nautilus-global-preferences.h	2026-11-01 00:13:25.288065178 +0100
+@@ -117,6 +117,8 @@
+ /* CodLab: ricerca non ricorsiva a scelta, vedi org.gnome.nautilus.codlab */
+ #define NAUTILUS_CODELAB_PREFERENCES_SCHEMA "org.gnome.nautilus.codlab"
+ #define NAUTILUS_CODELAB_PREFERENCES_RICERCA_SOLO_QUI "ricerca-solo-qui"
++/* CodLab (INC-2): riquadro dettagli a destra, stato ricordato */
++#define NAUTILUS_CODELAB_PREFERENCES_RIQUADRO_DETTAGLI "riquadro-dettagli"
+ 
+ /* Context menu options */
+ #define NAUTILUS_PREFERENCES_SHOW_DELETE_PERMANENTLY "show-delete-permanently"
+diff -ruN a/src/nautilus-window.c b/src/nautilus-window.c
+--- a/src/nautilus-window.c	2026-09-15 01:11:52.000000000 +0200
++++ b/src/nautilus-window.c	2026-11-01 00:33:40.332071738 +0100
+@@ -47,6 +47,7 @@
+ #include "nautilus-bookmark.h"
+ #include "nautilus-bookmark-list.h"
+ #include "nautilus-clipboard.h"
++#include "nautilus-details-pane.h"
+ #include "nautilus-dnd.h"
+ #include "nautilus-enums.h"
+ #include "nautilus-file.h"
+@@ -100,6 +101,9 @@
+ 
+     GtkWidget *split_view;
+ 
++    /* CodLab (INC-2): riquadro dettagli a destra */
++    GtkWidget *details_pane;
++
+     /* Side Pane */
+     NautilusSidebar *places_sidebar;
+     GVolume *selected_volume;     /* the selected volume in the sidebar popup callback */
+@@ -1141,6 +1145,18 @@
+     nautilus_application_set_accelerator (app, "win.restore-tab", "<shift><control>t");
+     nautilus_application_set_accelerator (app, "win.toggle-sidebar", "F9");
+ 
++    /* CodLab (INC-2): riquadro dettagli a destra, come Alt+P di Explorer
++     * (F9 e' preso dal toggle della barra laterale: nautilus-window.c,
++     * riga sopra). Azione statuale sulla proprieta' «revealed» del pane:
++     * la voce di menu esce con la spunta, e il valore persiste nella
++     * chiave riquadro-dettagli dello schema nostro. */
++    {
++        g_autoptr (GPropertyAction) details_action =
++            g_property_action_new ("details-pane", window->details_pane, "revealed");
++        g_action_map_add_action (G_ACTION_MAP (window), G_ACTION (details_action));
++    }
++    nautilus_application_set_accelerator (app, "win.details-pane", "<alt>P");
++
+     /* Alt+N for the first 9 tabs */
+     for (i = 0; i < 9; ++i)
+     {
+@@ -1562,6 +1578,8 @@
+     g_type_ensure (NAUTILUS_TYPE_PLACES_SIDEBAR);
+     g_type_ensure (NAUTILUS_TYPE_PROGRESS_INDICATOR);
+     g_type_ensure (NAUTILUS_TYPE_SHORTCUT_MANAGER);
++    /* CodLab (INC-2): il riquadro dettagli sta nel template della finestra */
++    g_type_ensure (NAUTILUS_TYPE_DETAILS_PANE);
+     gtk_widget_init_template (GTK_WIDGET (window));
+ 
+     g_signal_connect (window, "notify::maximized",
+@@ -1683,6 +1701,7 @@
+     gtk_widget_class_bind_template_child (wclass, NautilusWindow, undo_redo_section);
+     gtk_widget_class_bind_template_child (wclass, NautilusWindow, toolbar);
+     gtk_widget_class_bind_template_child (wclass, NautilusWindow, split_view);
++    gtk_widget_class_bind_template_child (wclass, NautilusWindow, details_pane);
+     gtk_widget_class_bind_template_child (wclass, NautilusWindow, places_sidebar);
+     gtk_widget_class_bind_template_child (wclass, NautilusWindow, toast_overlay);
+     gtk_widget_class_bind_template_child (wclass, NautilusWindow, tab_overview);
+diff -ruN a/src/resources/ui/meson.build b/src/resources/ui/meson.build
+--- a/src/resources/ui/meson.build	2026-10-11 21:36:00.000000000 +0200
++++ b/src/resources/ui/meson.build	2026-11-02 08:40:00.000000000 +0100
+@@ -6,6 +6,7 @@
+   'nautilus-compress-dialog',
+   'nautilus-date-entry-row',
+   'nautilus-date-range-dialog',
++  'nautilus-details-pane',
+   'nautilus-file-chooser',
+   'nautilus-file-conflict-dialog',
+   'nautilus-file-properties-change-permissions',
+diff -ruN a/src/resources/nautilus.gresource.xml.in b/src/resources/nautilus.gresource.xml.in
+--- a/src/resources/nautilus.gresource.xml.in	2026-09-15 01:11:52.000000000 +0200
++++ b/src/resources/nautilus.gresource.xml.in	2026-11-01 00:13:25.306635499 +0100
+@@ -18,6 +18,7 @@
+     <file preprocess="xml-stripblanks">ui/nautilus-compress-dialog.ui</file>
+     <file preprocess="xml-stripblanks">ui/nautilus-date-entry-row.ui</file>
+     <file preprocess="xml-stripblanks">ui/nautilus-date-range-dialog.ui</file>
++    <file preprocess="xml-stripblanks">ui/nautilus-details-pane.ui</file>
+     <file preprocess="xml-stripblanks">ui/nautilus-file-chooser.ui</file>
+     <file preprocess="xml-stripblanks">ui/nautilus-file-conflict-dialog.ui</file>
+     <file preprocess="xml-stripblanks">ui/nautilus-file-properties-change-permissions.ui</file>
+diff -ruN a/src/resources/ui/nautilus-details-pane.blp b/src/resources/ui/nautilus-details-pane.blp
+--- a/src/resources/ui/nautilus-details-pane.blp	1970-01-01 01:00:00.000000000 +0100
++++ b/src/resources/ui/nautilus-details-pane.blp	2026-11-01 00:13:25.321635535 +0100
+@@ -0,0 +1,73 @@
++using Gtk 4.0;
++using Adw 1;
++
++/* CodLab (incremento 2 «Nautilus potente»): riquadro dettagli a destra.
++ * Nessun handler nel template: tutte le connessioni vivono in
++ * nautilus-details-pane.c (lezione 2 di INC-1: zero callback non bindati). */
++template $NautilusDetailsPane: Adw.Bin {
++  width-request: 320;
++
++  Gtk.Box {
++    orientation: horizontal;
++
++    Gtk.Separator {
++      orientation: vertical;
++    }
++
++    Gtk.ScrolledWindow {
++      hscrollbar-policy: never;
++      hexpand: true;
++
++      Gtk.Box {
++        orientation: vertical;
++        spacing: 12;
++        margin-top: 12;
++        margin-bottom: 12;
++        margin-start: 12;
++        margin-end: 12;
++
++        $NautilusImage preview {
++          size: 256;
++          halign: center;
++        }
++
++        Gtk.Label name_label {
++          wrap: true;
++          justify: center;
++
++          styles [
++            "title-4",
++          ]
++        }
++
++        Gtk.Label kind_label {
++          wrap: true;
++          justify: center;
++
++          styles [
++            "dim-label",
++            "caption",
++          ]
++        }
++
++        Gtk.Label hint_label {
++          visible: false;
++          wrap: true;
++          justify: center;
++          label: _("Select an item to see its details");
++
++          styles [
++            "dim-label",
++          ]
++        }
++
++        Gtk.Separator {}
++
++        Gtk.Box metadata_box {
++          orientation: vertical;
++          spacing: 8;
++        }
++      }
++    }
++  }
++}
+diff -ruN a/src/resources/ui/nautilus-window.blp b/src/resources/ui/nautilus-window.blp
+--- a/src/resources/ui/nautilus-window.blp	2026-09-15 01:11:52.000000000 +0200
++++ b/src/resources/ui/nautilus-window.blp	2026-11-01 00:15:16.755399913 +0100
+@@ -21,6 +21,13 @@
+     }
+   }
+ 
++  section {
++    item {
++      label: _("Show _Details Pane");
++      action: "win.details-pane";
++    }
++  }
++
+   section undo_redo_section {
+     /* Note: This section is often recreated by undo_manager_changed() to
+      * change the labels of the actions. If you change anything here,
+@@ -139,100 +146,114 @@
+         secondary-menu: tab_overview_menu_model;
+         create-tab => $create_tab_cb() swapped;
+ 
+-        child: Adw.OverlaySplitView split_view {
+-          enable-show-gesture: false;
+-          enable-hide-gesture: false;
+-          sidebar-width-fraction: 0.2;
+-
+-          sidebar: Adw.ToolbarView {
+-            reveal-bottom-bars: bind progress_indicator.reveal;
+-
+-            [top]
+-            Adw.HeaderBar {
+-              [start]
+-              ToggleButton {
+-                tooltip-text: _("Search Everywhere");
+-                action-name: "slot.search-global";
+-                icon-name: "edit-find-symbolic";
++        /* CodLab (INC-2): il riquadro dettagli sta a destra dello split
++         * view, in una box orizzontale: la barra laterale sinistra non si
++         * tocca, la vista file si restringe. Il pane nasce invisibile se
++         * la chiave riquadro-dettagli e' false. */
++        child: Gtk.Box {
++          orientation: horizontal;
++
++          Adw.OverlaySplitView split_view {
++            enable-show-gesture: false;
++            enable-hide-gesture: false;
++            sidebar-width-fraction: 0.2;
++            hexpand: true;
++
++            sidebar: Adw.ToolbarView {
++              reveal-bottom-bars: bind progress_indicator.reveal;
++
++              [top]
++              Adw.HeaderBar {
++                [start]
++                ToggleButton {
++                  tooltip-text: _("Search Everywhere");
++                  action-name: "slot.search-global";
++                  icon-name: "edit-find-symbolic";
++                }
++
++                title-widget: Adw.WindowTitle {
++                  title: _("Files");
++                };
++
++                [end]
++                MenuButton {
++                  tooltip-text: _("Main Menu");
++                  icon-name: "open-menu-symbolic";
++                  menu-model: app_menu;
++                }
+               }
+ 
+-              title-widget: Adw.WindowTitle {
+-                title: _("Files");
+-              };
++              [bottom]
++              Box {
++                styles [
++                  "toolbar",
++                ]
+ 
+-              [end]
+-              MenuButton {
+-                tooltip-text: _("Main Menu");
+-                icon-name: "open-menu-symbolic";
+-                menu-model: app_menu;
+-              }
+-            }
+-
+-            [bottom]
+-            Box {
+-              styles [
+-                "toolbar",
+-              ]
+-
+-              $NautilusProgressIndicator progress_indicator {}
+-            }
+-
+-            content: $NautilusSidebar places_sidebar {
+-              vexpand: true;
+-              window-slot: bind template.active-slot;
+-            };
+-          };
++                $NautilusProgressIndicator progress_indicator {}
++              }
+ 
+-          content: Adw.ToolbarView {
+-            [top]
+-            $NautilusToolbar toolbar {
+-              show-view-controls: true;
+-              show-history-controls: true;
+-              sidebar-button-active: bind split_view.show-sidebar bidirectional;
+-              window-slot: bind template.active-slot;
+-            }
+-
+-            [top]
+-            Adw.TabBar tab_bar {
+-              view: tab_view;
+-            }
+-
+-            content: Adw.TabView tab_view {
+-              menu-model: tab_menu_model;
+-              close-page => $tab_view_close_page_cb();
+-              setup-menu => $tab_view_setup_menu_cb();
+-              notify::selected-page => $tab_view_notify_selected_page_cb();
+-              create-window => $tab_view_create_window_cb();
+-              page-attached => $tab_view_page_attached_cb();
+-              page-detached => $tab_view_page_detached_cb();
++              content: $NautilusSidebar places_sidebar {
++                vexpand: true;
++                window-slot: bind template.active-slot;
++              };
+             };
+ 
+-            [bottom]
+-            $NautilusNetworkAddressBar network_address_bar {
+-              visible: false;
+-            }
+-
+-            [bottom]
+-            ActionBar action_bar {
+-              revealed: false;
+-
+-              [start]
+-              $NautilusHistoryControls {
++            content: Adw.ToolbarView {
++              [top]
++              $NautilusToolbar toolbar {
++                show-view-controls: true;
++                show-history-controls: true;
++                sidebar-button-active: bind split_view.show-sidebar bidirectional;
+                 window-slot: bind template.active-slot;
+               }
+ 
+-              [end]
+-              $NautilusViewControls {
+-                window-slot: bind template.active-slot;
++              [top]
++              Adw.TabBar tab_bar {
++                view: tab_view;
+               }
+ 
+-              [end]
+-              Adw.TabButton {
+-                view: tab_view;
+-                action-name: "win.open-tab-overview";
++              content: Adw.TabView tab_view {
++                menu-model: tab_menu_model;
++                close-page => $tab_view_close_page_cb();
++                setup-menu => $tab_view_setup_menu_cb();
++                notify::selected-page => $tab_view_notify_selected_page_cb();
++                create-window => $tab_view_create_window_cb();
++                page-attached => $tab_view_page_attached_cb();
++                page-detached => $tab_view_page_detached_cb();
++              };
++
++              [bottom]
++              $NautilusNetworkAddressBar network_address_bar {
++                visible: false;
+               }
+-            }
+-          };
++
++              [bottom]
++              ActionBar action_bar {
++                revealed: false;
++
++                [start]
++                $NautilusHistoryControls {
++                  window-slot: bind template.active-slot;
++                }
++
++                [end]
++                $NautilusViewControls {
++                  window-slot: bind template.active-slot;
++                }
++
++                [end]
++                Adw.TabButton {
++                  view: tab_view;
++                  action-name: "win.open-tab-overview";
++                }
++              }
++            };
++          }
++
++          $NautilusDetailsPane details_pane {
++            window-slot: bind template.active-slot;
++          }
++
+         };
+       };
+     };

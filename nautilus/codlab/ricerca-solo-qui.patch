@@ -1,0 +1,371 @@
+CodLab (incremento 1d «Nautilus potente»): ricerca «solo qui» nel popover.
+
+Explorer ha «cartella corrente / tutte le sottocartelle» nella barra di
+ricerca; Nautilus cerca sempre in profondita' (la chiave `recursive-search`
+esiste ma e' nascosta e globale). Qui si aggiunge un gruppo «Profondita'»
+nel popover di ricerca con due pulsanti: «Solo qui» e «Anche nelle
+sottocartelle», persistiti nella chiave `ricerca-solo-qui` dello schema
+NOSTRO `org.gnome.nautilus.codlab` (installato dal pacchetto; nessuna chiave
+inventata dentro lo schema upstream).
+
+Con «solo qui» attivo la ricerca non scende nelle sottocartelle: su dischi
+grandi (/mnt) smette di camminare l'intero albero per cercare un nome. La
+chiave e' un vincolo AGGIUNTIVO su `recursive-search`: se e' vera, la
+ricerca non e' mai ricorsiva, qualunque sia recursive-search.
+
+Chiusura 1 (revisione del 31.10.2026 sulla 1.7):
+  * lo schema CodLab vive in un pacchetto a parte: se manca (ritorno
+    parziale al 1.6, rpm2cpio senza il gschema) Nautilus 1.7 abortiva con
+    GLib-GIO-ERROR. Ora nautilus_global_preferences_init() fa
+    g_settings_schema_source_lookup() PRIMA di g_settings_new(): senza
+    schema l'istanza resta NULL, la ricerca e' quella di sempre e il
+    gruppo «Profondita'» viene nascosto (depth_header/depth_options_box);
+    guardie NULL coerenti in query-editor (init/dispose) e in
+    depth_option_clicked, che non dereferenzia mai NULL;
+  * in nautilus_search_popover_class_init mancava
+    gtk_widget_class_bind_template_callback(depth_option_clicked):
+    gtk_widget_init_template si interrompeva a meta' (Gtk-CRITICAL,
+    popover mutilato, «Data di modifica» sparita) e il click sui pulsanti
+    non cambiava MAI la chiave. Ora il bind c'e' e il click scrive
+    davvero ricerca-solo-qui;
+  * traduzioni italiane in po/it.po: «Profondita'», «Solo qui», «Anche
+    nelle sottocartelle» (+ i due tooltip).
+
+I punti toccati seguono il pattern esistente di recursive-search:
+  * data/meson.build: compila e installa anche il gschema CodLab;
+  * nautilus-global-preferences.{c,h}: l'istanza GSettings e i simboli
+    (con il fallback di sopra);
+  * nautilus-query.c: get_recursion_tradeoff torna NEVER se «solo qui»;
+  * nautilus-query-editor.c: changed::ricerca-solo-qui rifarla la ricerca
+    con lo stesso gestore di changed::recursive-search (e il disconnect
+    corrispondente in dispose, entrambi protetti se l'istanza manca);
+  * nautilus-search-popover.c/.blp: il gruppo «Profondita'», il click che
+    scrive la chiave, lo stato attivo letto dal setting all'apertura
+    (stesso stile del gruppo «Abbinamento testo»: due pulsanti checkbox
+    con classe accent, SizeGroup con le altre intestazioni);
+  * po/it.po: le tre stringhe nuove in italiano.
+
+Provata con %check del pacchetto e in una sessione isolata: rosso-prima = abort senza
+schema e click inerte; verde-dopo = parte senza schema, il click cambia
+la chiave false->true e il risultato profondo sparisce, zero
+Gtk-CRITICAL (strace: zero openat sulle sottocartelle durante la ricerca).
+
+Applicare con: patch -p1 < ricerca-solo-qui.patch  (dentro nautilus-51.0.1)
+
+--- a/data/meson.build	2026-10-31 18:34:38.121159548 +0100
++++ b/data/meson.build	2026-10-31 18:34:38.161474886 +0100
+@@ -98,11 +98,15 @@
+ 
+ gnome.compile_schemas(
+   build_by_default: true,
+-  depend_files: 'org.gnome.nautilus.gschema.xml'
++  depend_files: [
++    'org.gnome.nautilus.gschema.xml',
++    'org.gnome.nautilus.codlab.gschema.xml',
++  ]
+ )
+ 
+ install_data(
+   'org.gnome.nautilus.gschema.xml',
++  'org.gnome.nautilus.codlab.gschema.xml',
+   install_dir: join_paths(datadir, 'glib-2.0', 'schemas')
+ )
+ 
+--- a/data/org.gnome.nautilus.codlab.gschema.xml	1970-01-01 01:00:00.000000000 +0100
++++ b/data/org.gnome.nautilus.codlab.gschema.xml	1970-01-01 01:00:00.000000000 +0100
+@@ -0,0 +1,16 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<schemalist>
++  <!-- Schema CodLab per le preferenze nostre di Nautilus «potente».
++       Separato dallo schema upstream: sopravvive agli aggiornamenti di
++       Nautilus senza toccare le loro chiave. -->
++  <schema path="/org/gnome/nautilus/codlab/" id="org.gnome.nautilus.codlab" gettext-domain="nautilus">
++    <key type="b" name="ricerca-solo-qui">
++      <default>false</default>
++      <summary>Search only in the current folder</summary>
++      <description>When true, file search does not descend into
++      subfolders, whatever the value of recursive-search. Like the
++      “current folder / all subfolders” switch of Windows
++      Explorer. Set by the search popover “Depth” group.</description>
++    </key>
++  </schema>
++</schemalist>
+--- a/src/nautilus-global-preferences.c	2026-10-31 18:34:38.133507669 +0100
++++ b/src/nautilus-global-preferences.c	2026-10-31 18:35:06.344504368 +0100
+@@ -28,6 +28,7 @@
+ #include <glib/gi18n.h>
+ 
+ GSettings *nautilus_preferences;
++GSettings *nautilus_codlab_preferences;
+ GSettings *nautilus_compression_preferences;
+ GSettings *nautilus_icon_view_preferences;
+ GSettings *nautilus_list_view_preferences;
+@@ -99,6 +100,20 @@
+     initialized = TRUE;
+ 
+     nautilus_preferences = g_settings_new ("org.gnome.nautilus.preferences");
++    /* CodLab: lo schema nostro sta in un pacchetto a parte; se manca
++     * (ritorno parziale al 1.6) si parte lo stesso: ricerca di sempre,
++     * niente gruppo Profondita'. g_settings_new abortirebbe (audit 31.10). */
++    {
++        g_autoptr (GSettingsSchema) schema_codlab =
++            g_settings_schema_source_lookup (g_settings_schema_source_get_default (),
++                                             NAUTILUS_CODELAB_PREFERENCES_SCHEMA,
++                                             TRUE);
++
++        if (schema_codlab != NULL)
++        {
++            nautilus_codlab_preferences = g_settings_new (NAUTILUS_CODELAB_PREFERENCES_SCHEMA);
++        }
++    }
+     nautilus_compression_preferences = g_settings_new ("org.gnome.nautilus.compression");
+     nautilus_window_state = g_settings_new ("org.gnome.nautilus.window-state");
+     nautilus_icon_view_preferences = g_settings_new ("org.gnome.nautilus.icon-view");
+--- a/src/nautilus-global-preferences.h	2026-10-31 18:34:38.133514408 +0100
++++ b/src/nautilus-global-preferences.h	2026-10-31 18:34:38.161614034 +0100
+@@ -114,6 +114,9 @@
+ 
+ /* Search behaviour */
+ #define NAUTILUS_PREFERENCES_RECURSIVE_SEARCH "recursive-search"
++/* CodLab: ricerca non ricorsiva a scelta, vedi org.gnome.nautilus.codlab */
++#define NAUTILUS_CODELAB_PREFERENCES_SCHEMA "org.gnome.nautilus.codlab"
++#define NAUTILUS_CODELAB_PREFERENCES_RICERCA_SOLO_QUI "ricerca-solo-qui"
+ 
+ /* Context menu options */
+ #define NAUTILUS_PREFERENCES_SHOW_DELETE_PERMANENTLY "show-delete-permanently"
+@@ -140,6 +143,7 @@
+ gboolean nautilus_global_preferences_get_use_extra_buttons (void);
+ 
+ extern GSettings *nautilus_preferences;
++extern GSettings *nautilus_codlab_preferences;
+ extern GSettings *nautilus_compression_preferences;
+ extern GSettings *nautilus_icon_view_preferences;
+ extern GSettings *nautilus_list_view_preferences;
+--- a/src/nautilus-query.c	2026-10-31 18:34:38.134303559 +0100
++++ b/src/nautilus-query.c	2026-10-31 18:34:38.161656692 +0100
+@@ -62,6 +62,15 @@
+     NautilusSpeedTradeoffValue tradeoff =
+         g_settings_get_enum (nautilus_preferences, NAUTILUS_PREFERENCES_RECURSIVE_SEARCH);
+ 
++    /* CodLab: «solo qui» batte sempre: la ricerca non scende nelle
++     * sottocartelle, qualunque sia recursive-search */
++    if (nautilus_codlab_preferences != NULL &&
++        g_settings_get_boolean (nautilus_codlab_preferences,
++                                NAUTILUS_CODELAB_PREFERENCES_RICERCA_SOLO_QUI))
++    {
++        return NAUTILUS_SPEED_TRADEOFF_NEVER;
++    }
++
+     if (tradeoff != NAUTILUS_SPEED_TRADEOFF_LOCAL_ONLY)
+     {
+         return tradeoff;
+--- a/src/nautilus-query-editor.c	2026-10-31 18:34:38.134279861 +0100
++++ b/src/nautilus-query-editor.c	2026-10-31 18:35:06.344646961 +0100
+@@ -325,6 +325,13 @@
+     g_signal_handlers_disconnect_by_func (nautilus_preferences,
+                                           recursive_search_preferences_changed,
+                                           object);
++    /* CodLab: l'istanza nostra puo' mancare (schema assente) */
++    if (nautilus_codlab_preferences != NULL)
++    {
++        g_signal_handlers_disconnect_by_func (nautilus_codlab_preferences,
++                                              recursive_search_preferences_changed,
++                                              object);
++    }
+ 
+     g_cancellable_cancel (editor->cancellable);
+     g_clear_object (&editor->cancellable);
+@@ -660,6 +667,14 @@
+                       "changed::recursive-search",
+                       G_CALLBACK (recursive_search_preferences_changed),
+                       editor);
++    /* CodLab: «ricerca solo qui» incatena la stessa reazione */
++    if (nautilus_codlab_preferences != NULL)
++    {
++        g_signal_connect (nautilus_codlab_preferences,
++                          "changed::" NAUTILUS_CODELAB_PREFERENCES_RICERCA_SOLO_QUI,
++                          G_CALLBACK (recursive_search_preferences_changed),
++                          editor);
++    }
+ 
+     editor->cancellable = g_cancellable_new ();
+ 
+--- a/src/nautilus-search-popover.c	2026-10-31 18:34:38.134487244 +0100
++++ b/src/nautilus-search-popover.c	2026-10-31 18:35:06.344790670 +0100
+@@ -83,6 +83,13 @@
+ 
+     GtkButton *active_fts_button;
+ 
++    /* CodLab: profondita' della ricerca (solo qui / anche sottocartelle) */
++    GtkWidget *depth_header;
++    GtkWidget *depth_options_box;
++    GtkButton *depth_here_button;
++    GtkButton *depth_subfolders_button;
++    GtkButton *active_depth_button;
++
+     AdwDialog *type_dialog;
+     GtkStack *type_dialog_stack;
+ 
+@@ -303,6 +310,33 @@
+     }
+ }
+ 
++/* CodLab: profondita' — il gesto e' identico a quello dell'abbinamento
++ * testo: si scrive la preferenza (schema nostro) e il query-editor,
++ * che ascolta la chiave, rifarla la ricerca */
++static void
++depth_option_clicked (NautilusSearchPopover *self,
++                      GtkButton             *button)
++{
++    /* CodLab: senza lo schema nostro (pacchetto rimosso) il gruppo e'
++     * nascosto e qui non si arriva; mai dereferenziare NULL */
++    if (nautilus_codlab_preferences == NULL)
++    {
++        return;
++    }
++
++    gboolean solo_qui = (button == self->depth_here_button);
++    gboolean era_solo_qui = g_settings_get_boolean (nautilus_codlab_preferences,
++                                                    NAUTILUS_CODELAB_PREFERENCES_RICERCA_SOLO_QUI);
++
++    if (solo_qui != era_solo_qui)
++    {
++        g_settings_set_boolean (nautilus_codlab_preferences,
++                                NAUTILUS_CODELAB_PREFERENCES_RICERCA_SOLO_QUI,
++                                solo_qui);
++        set_active_button (&self->active_depth_button, button);
++    }
++}
++
+ static void
+ fts_option_clicked (NautilusSearchPopover *self,
+                     GtkButton             *button)
+@@ -577,9 +611,18 @@
+     gtk_widget_class_bind_template_child (widget_class, NautilusSearchPopover, other_options_box);
+     gtk_widget_class_bind_template_child (widget_class, NautilusSearchPopover, content_and_filename_button);
+     gtk_widget_class_bind_template_child (widget_class, NautilusSearchPopover, filename_only_button);
++    /* CodLab: profondita' della ricerca */
++    gtk_widget_class_bind_template_child (widget_class, NautilusSearchPopover, depth_header);
++    gtk_widget_class_bind_template_child (widget_class, NautilusSearchPopover, depth_options_box);
++    gtk_widget_class_bind_template_child (widget_class, NautilusSearchPopover, depth_here_button);
++    gtk_widget_class_bind_template_child (widget_class, NautilusSearchPopover, depth_subfolders_button);
+     gtk_widget_class_bind_template_child (widget_class, NautilusSearchPopover, content_only_button);
+ 
+     gtk_widget_class_bind_template_callback (widget_class, file_types_button_clicked);
++    /* CodLab: senza questo bind gtk_widget_init_template si interrompe a
++     * meta' (Gtk-CRITICAL, popover mutilato) e il click non arriva MAI al
++     * callback: difetto rosso trovato dalla revisione del 31.10.2026 */
++    gtk_widget_class_bind_template_callback (widget_class, depth_option_clicked);
+     gtk_widget_class_bind_template_callback (widget_class, date_button_clicked);
+     gtk_widget_class_bind_template_callback (widget_class, show_date_range_dialog_cb);
+     gtk_widget_class_bind_template_callback (widget_class, fts_option_clicked);
+@@ -739,6 +782,24 @@
+     {
+         set_active_button (&self->active_fts_button, self->filename_only_button);
+     }
++
++    /* CodLab: profondita' della ricerca, lo stato della chiave nostra.
++     * Se lo schema manca (pacchetto a parte rimosso) il gruppo sparisce
++     * dal popover: resta la ricerca di sempre, mai un crash */
++    if (nautilus_codlab_preferences == NULL)
++    {
++        gtk_widget_set_visible (self->depth_header, FALSE);
++        gtk_widget_set_visible (self->depth_options_box, FALSE);
++    }
++    else if (g_settings_get_boolean (nautilus_codlab_preferences,
++                                     NAUTILUS_CODELAB_PREFERENCES_RICERCA_SOLO_QUI))
++    {
++        set_active_button (&self->active_depth_button, self->depth_here_button);
++    }
++    else
++    {
++        set_active_button (&self->active_depth_button, self->depth_subfolders_button);
++    }
+ }
+ 
+ GtkWidget *
+--- a/src/resources/ui/nautilus-search-popover.blp	2026-10-31 18:34:38.135468883 +0100
++++ b/src/resources/ui/nautilus-search-popover.blp	2026-10-31 18:34:38.161906789 +0100
+@@ -301,6 +301,45 @@
+             clicked => $fts_option_clicked(template);
+           }
+         }
++
++        /* Depth of the search (CodLab: ricerca «solo qui») */
++        Box depth_header {
++          Label {
++            label: _("Depth");
++            valign: baseline;
++
++            styles [
++              "heading",
++            ]
++          }
++        }
++
++        Box depth_options_box {
++          orientation: vertical;
++          spacing: 6;
++
++          Adw.WrapBox {
++            child-spacing: 6;
++            line-spacing: 6;
++            natural-line-length: 340;
++
++            Button depth_here_button {
++              accessible-role: checkbox;
++              label: _("_Only This Folder");
++              tooltip-text: _("Don't descend into subfolders: fast on big disks");
++              use-underline: true;
++              clicked => $depth_option_clicked(template);
++            }
++
++            Button depth_subfolders_button {
++              accessible-role: checkbox;
++              label: _("_All Subfolders");
++              tooltip-text: _("Descend into subfolders (as before)");
++              use-underline: true;
++              clicked => $depth_option_clicked(template);
++            }
++          }
++        }
+       }
+     };
+   };
+@@ -313,5 +352,6 @@
+     type_header,
+     date_header,
+     fts_header,
++    depth_header,
+   ]
+ }
+--- a/po/it.po	2026-10-31 18:34:38.126459229 +0100
++++ b/po/it.po	2026-10-31 18:35:06.345361223 +0100
+@@ -5488,6 +5488,27 @@
+ msgid "Only Co_ntents"
+ msgstr "Solo i co_ntenuti:"
+ 
++# CodLab (ricerca «solo qui», 31.10.2026): gruppo Profondita' nel popover
++#: src/resources/ui/nautilus-search-popover.blp:308
++msgid "Depth"
++msgstr "Profondità"
++
++#: src/resources/ui/nautilus-search-popover.blp:317
++msgid "_Only This Folder"
++msgstr "_Solo qui"
++
++#: src/resources/ui/nautilus-search-popover.blp:318
++msgid "Don't descend into subfolders: fast on big disks"
++msgstr "Non scende nelle sottocartelle: veloce sui dischi grandi"
++
++#: src/resources/ui/nautilus-search-popover.blp:326
++msgid "_All Subfolders"
++msgstr "_Anche nelle sottocartelle"
++
++#: src/resources/ui/nautilus-search-popover.blp:327
++msgid "Descend into subfolders (as before)"
++msgstr "Scende nelle sottocartelle (come prima)"
++
+ #: src/resources/ui/nautilus-search-types-dialog.blp:5
+ msgid "Add File Type Filter"
+ msgstr "Aggiungi filtro per tipo di file"

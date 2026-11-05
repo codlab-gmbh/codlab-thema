@@ -1,0 +1,2058 @@
+diff --git a/data/org.gnome.nautilus.codlab.gschema.xml b/data/org.gnome.nautilus.codlab.gschema.xml
+index 550f532..3455786 100644
+--- a/data/org.gnome.nautilus.codlab.gschema.xml
++++ b/data/org.gnome.nautilus.codlab.gschema.xml
+@@ -38,5 +38,19 @@
+       back to “nessuno”. While grouping is active the tree expansion of
+       the list view is disabled.</description>
+     </key>
++    <!-- CodLab (INC-4): TRUE dopo la prima modifica fatta dalla finestra
++         «Configura» della barra laterale (voce creata o rinominata,
++         cartella aggiunta). La finestra scrive barra.ini (formato invariato)
++         e i segnalibri GTK in modo atomico, con la copia di prima accanto
++         (<file>.bak); la barra si aggiorna da sola dai suoi monitor. -->
++    <key type="b" name="gruppi-personalizzati">
++      <default>false</default>
++      <summary>Sidebar groups have been customized</summary>
++      <description>Set to true the first time the sidebar groups are
++      changed from the “Configure” window: an entry created or
++      renamed, a folder added. The window
++      writes barra.ini (unchanged format) and the GTK bookmarks
++      atomically, keeping a backup copy of each file before writing.</description>
++    </key>
+   </schema>
+ </schemalist>
+diff --git a/po/it.po b/po/it.po
+index 1553853..2c56986 100644
+--- a/po/it.po
++++ b/po/it.po
+@@ -6777,3 +6777,93 @@ msgstr "%s liberi"
+ #, c-format
+ msgid "%s; %.0f%% used. Warning below 200 GB, critical below 100 GB free."
+ msgstr "%s; %.0f%% usato. Avviso sotto 200 GB, critico sotto 100 GB liberi."
++
++#: src/nautilus-sidebar.c
++msgid "Configure"
++msgstr "Configura"
++
++#: src/nautilus-sidebar-config.c
++msgid "Configure sidebar groups"
++msgstr "Configura i gruppi della barra"
++
++msgid "Create, rename and move the entries"
++msgstr "Crea, rinomina e sposta le voci"
++
++msgid "Create and rename the entries"
++msgstr "Crea e rinomina le voci"
++
++msgid "Not saved"
++msgstr "Non salvato"
++
++msgid "The file cannot be read: nothing was saved."
++msgstr "Il file non si legge: niente è stato salvato."
++
++msgid "The file was changed outside this window: nothing was saved. Close the window and open it again."
++msgstr "Il file è stato cambiato fuori da questa finestra: niente è stato salvato. Chiudi la finestra e riaprila."
++
++msgid "The new content would lose entries of the file: nothing was saved."
++msgstr "Il contenuto nuovo perderebbe voci del file: niente è stato salvato."
++
++msgid "The file cannot be written: nothing was saved."
++msgstr "Impossibile scrivere il file: niente è stato salvato."
++
++msgid "Personalized"
++msgstr "Personalizzata"
++
++msgid "Add folder…"
++msgstr "Aggiungi cartella…"
++
++msgid "New entry…"
++msgstr "Nuova voce…"
++
++msgid "New entry"
++msgstr "Nuova voce"
++
++msgid "Rename entry"
++msgstr "Rinomina la voce"
++
++msgid "Change icon"
++msgstr "Cambia icona"
++
++msgid "Move up"
++msgstr "Sposta su"
++
++msgid "Move down"
++msgstr "Sposta giù"
++
++msgid "Icon"
++msgstr "Icona"
++
++msgid "Browse…"
++msgstr "Sfoglia…"
++
++msgid "Choose a folder"
++msgstr "Scegli la cartella"
++
++msgid "Confirm"
++msgstr "Conferma"
++
++msgid "Create"
++msgstr "Crea"
++
++msgid "Cannot add"
++msgstr "Impossibile aggiungere"
++
++msgid "An entry for this folder already exists."
++msgstr "Esiste già una voce per questa cartella."
++
++msgid "Too many entries in the Plex group (64 at most)."
++msgstr "Troppe voci nel gruppo Plex (al massimo 64)."
++
++msgid "The folder does not exist."
++msgstr "La cartella non esiste."
++
++msgid "No entries"
++msgstr "Nessuna voce"
++
++msgid "Follows the system volumes"
++msgstr "Segue i volumi del sistema"
++
++#: src/nautilus-sidebar-config.c
++msgid "Rename…"
++msgstr "Rinomina…"
+diff --git a/src/meson.build b/src/meson.build
+index 66f448b..93271e6 100644
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -251,6 +251,8 @@ libnautilus_sources = [
+   'nautilus-shortcut-manager.h',
+   'nautilus-sidebar.c',
+   'nautilus-sidebar.h',
++  'nautilus-sidebar-config.c',
++  'nautilus-sidebar-config.h',
+   'nautilus-sidebar-row.c',
+   'nautilus-sidebar-row.h',
+   'nautilus-signaller.c',
+diff --git a/src/nautilus-global-preferences.c b/src/nautilus-global-preferences.c
+index a58bafe..28d2dd0 100644
+--- a/src/nautilus-global-preferences.c
++++ b/src/nautilus-global-preferences.c
+@@ -73,6 +73,41 @@ nautilus_codlab_preferences_has_raggruppa_per (void)
+                                        NAUTILUS_CODELAB_PREFERENCES_RAGGRUPPA_PER));
+ }
+ 
++/* CodLab (INC-4): stessa guardia per-chiave per gruppi-personalizzati. La
++ * finestra «Configura» scrive barra.ini e i segnalibri con uno schema
++ * vecchio davanti (1.9/1.8.1 senza la chiave): la scrittura riesce, la
++ * chiave resta ferma, nessun GLib-GIO-ERROR. */
++gboolean
++nautilus_codlab_preferences_has_gruppi_personalizzati (void)
++{
++    return (nautilus_codlab_preferences != NULL && codlab_schema != NULL &&
++            g_settings_schema_has_key (codlab_schema,
++                                       NAUTILUS_CODELAB_PREFERENCES_GRUPPI_PERSONALIZZATI));
++}
++
++gboolean
++nautilus_codlab_preferences_get_gruppi_personalizzati (void)
++{
++    if (!nautilus_codlab_preferences_has_gruppi_personalizzati ())
++    {
++        return FALSE;
++    }
++    return g_settings_get_boolean (nautilus_codlab_preferences,
++                                   NAUTILUS_CODELAB_PREFERENCES_GRUPPI_PERSONALIZZATI);
++}
++
++void
++nautilus_codlab_preferences_set_gruppi_personalizzati (gboolean valore)
++{
++    if (!nautilus_codlab_preferences_has_gruppi_personalizzati ())
++    {
++        return;
++    }
++    g_settings_set_boolean (nautilus_codlab_preferences,
++                            NAUTILUS_CODELAB_PREFERENCES_GRUPPI_PERSONALIZZATI,
++                            valore);
++}
++
+ static void
+ use_extra_mouse_buttons_changed (gpointer callback_data)
+ {
+diff --git a/src/nautilus-global-preferences.h b/src/nautilus-global-preferences.h
+index 5301aa1..d081732 100644
+--- a/src/nautilus-global-preferences.h
++++ b/src/nautilus-global-preferences.h
+@@ -122,6 +122,9 @@ typedef enum
+ /* CodLab (INC-3): raggruppamento della vista a elenco
+  * (nessuno/tipo/data/dimensione), come «Raggruppa per» di Explorer */
+ #define NAUTILUS_CODELAB_PREFERENCES_RAGGRUPPA_PER "raggruppa-per"
++/* CodLab (INC-4): TRUE dopo la prima modifica fatta dalla finestra
++ * «Configura» dei gruppi della barra laterale */
++#define NAUTILUS_CODELAB_PREFERENCES_GRUPPI_PERSONALIZZATI "gruppi-personalizzati"
+ 
+ /* CodLab (INC-3): legge raggruppa-per in sicurezza: senza istanza GSettings
+  * (schema assente) o senza la chiave (schema 1.8.1) torna "nessuno", MAI
+@@ -131,6 +134,13 @@ char *nautilus_codlab_preferences_get_raggruppa_per (void);
+  * o scrive deve chiederlo prima (g_settings_set su chiave assente abortisce) */
+ gboolean nautilus_codlab_preferences_has_raggruppa_per (void);
+ 
++/* CodLab (INC-4): guarda/legge/scrive gruppi-personalizzati con la STESSA
++ * guardia per-chiave (schema vecchio = finestra che funziona lo stesso,
++ * la chiave resta ferma, MAI un abort). */
++gboolean nautilus_codlab_preferences_has_gruppi_personalizzati (void);
++gboolean nautilus_codlab_preferences_get_gruppi_personalizzati (void);
++void nautilus_codlab_preferences_set_gruppi_personalizzati (gboolean valore);
++
+ /* Context menu options */
+ #define NAUTILUS_PREFERENCES_SHOW_DELETE_PERMANENTLY "show-delete-permanently"
+ #define NAUTILUS_PREFERENCES_SHOW_CREATE_LINK "show-create-link"
+diff --git a/src/nautilus-sidebar.c b/src/nautilus-sidebar.c
+index c630e8c..711fd53 100644
+--- a/src/nautilus-sidebar.c
++++ b/src/nautilus-sidebar.c
+@@ -11,6 +11,7 @@
+  * nautilus with the GTK4 port in 7bf5ab0c73d5027dbe754df34243054a83ffae1b
+  */
+ #include "nautilus-sidebar.h"
++#include "nautilus-sidebar-config.h"
+ 
+ #include "config.h"
+ #include <glib/gi18n.h>
+@@ -118,6 +119,12 @@ struct _NautilusSidebar
+     GtkWidget *plex_toggle;
+     gboolean plex_expanded;
+ 
++    /* CodLab (INC-4): scatola radice (scorsoio + pulsante «Configura» in
++     * fondo) e la finestra di configurazione dei gruppi, una sola volta */
++    GtkWidget *root_box;
++    GtkWidget *configura_btn;
++    GtkWidget *config_finestra;
++
+     GActionGroup *row_actions;
+ 
+ #ifdef HAVE_CLOUDPROVIDERS
+@@ -3903,6 +3910,24 @@ update_location (NautilusSidebar *self)
+     nautilus_sidebar_set_location (self, location);
+ }
+ 
++/* CodLab (INC-4): apre (o porta in primo piano) la finestra «Configura i
++ * gruppi della barra». La finestra vive quanto serve: il puntatore debole
++ * si azzera da solo quando l'utente la chiude. */
++static void
++on_configura_clicked (GtkButton      *button,
++                      NautilusSidebar *self)
++{
++    if (self->config_finestra != NULL)
++    {
++        gtk_window_present (GTK_WINDOW (self->config_finestra));
++        return;
++    }
++    self->config_finestra = nautilus_sidebar_config_new (GTK_WIDGET (self));
++    g_object_add_weak_pointer (G_OBJECT (self->config_finestra),
++                               (gpointer *) &self->config_finestra);
++    gtk_window_present (GTK_WINDOW (self->config_finestra));
++}
++
+ static void
+ nautilus_sidebar_init (NautilusSidebar *sidebar)
+ {
+@@ -3940,7 +3965,23 @@ nautilus_sidebar_init (NautilusSidebar *sidebar)
+                              G_CONNECT_SWAPPED);
+ 
+     sidebar->swin = gtk_scrolled_window_new ();
+-    gtk_widget_set_parent (sidebar->swin, GTK_WIDGET (sidebar));
++    /* CodLab (INC-4): la radice diventa una scatola verticale col corsoio
++     * sopra (espandibile) e il pulsante «Configura» in fondo alla barra */
++    sidebar->root_box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
++    gtk_widget_set_parent (sidebar->root_box, GTK_WIDGET (sidebar));
++    gtk_widget_set_vexpand (sidebar->swin, TRUE);
++    gtk_box_append (GTK_BOX (sidebar->root_box), sidebar->swin);
++
++    sidebar->configura_btn = gtk_button_new_with_label (_("Configure"));
++    gtk_widget_add_css_class (sidebar->configura_btn, "flat");
++    g_object_set (sidebar->configura_btn, "margin-top", 4, "margin-bottom", 4,
++                  "margin-start", 6, "margin-end", 6, NULL);
++    gtk_accessible_update_property (GTK_ACCESSIBLE (sidebar->configura_btn),
++                                    GTK_ACCESSIBLE_PROPERTY_LABEL,
++                                    _("Configure"), -1);
++    g_signal_connect (sidebar->configura_btn, "clicked",
++                      G_CALLBACK (on_configura_clicked), sidebar);
++    gtk_box_append (GTK_BOX (sidebar->root_box), sidebar->configura_btn);
+ 
+     gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (sidebar->swin),
+                                     GTK_POLICY_NEVER,
+@@ -4130,6 +4171,12 @@ nautilus_sidebar_dispose (GObject *object)
+ 
+     sidebar = NAUTILUS_PLACES_SIDEBAR (object);
+ 
++    /* CodLab (INC-4): la finestra di configurazione non sopravvive alla
++     * barra che l'ha aperta (il puntatore debole si azzera da solo) */
++    if (sidebar->config_finestra != NULL)
++    {
++        gtk_window_destroy (GTK_WINDOW (sidebar->config_finestra));
++    }
+     g_clear_object (&sidebar->plex_monitor);
+     g_clear_object (&sidebar->window_slot);
+     g_clear_object (&sidebar->slot_signal_group);
+@@ -4210,7 +4257,9 @@ nautilus_sidebar_finalize (GObject *object)
+ 
+     g_clear_object (&sidebar->row_actions);
+ 
+-    g_clear_pointer (&sidebar->swin, gtk_widget_unparent);
++    /* CodLab (INC-4): la radice da staccare e' la scatola col corsoio e
++     * il pulsante Configura; il corsoio ora e' figlio della scatola */
++    g_clear_pointer (&sidebar->root_box, gtk_widget_unparent);
+ 
+     G_OBJECT_CLASS (nautilus_sidebar_parent_class)->finalize (object);
+ }
+@@ -4226,7 +4275,8 @@ nautilus_sidebar_measure (GtkWidget      *widget,
+ {
+     NautilusSidebar *sidebar = NAUTILUS_PLACES_SIDEBAR (widget);
+ 
+-    gtk_widget_measure (sidebar->swin,
++    /* CodLab (INC-4): misura e allocazione passano dalla scatola radice */
++    gtk_widget_measure (sidebar->root_box,
+                         orientation,
+                         for_size,
+                         minimum, natural,
+@@ -4241,7 +4291,7 @@ nautilus_sidebar_size_allocate (GtkWidget *widget,
+ {
+     NautilusSidebar *sidebar = NAUTILUS_PLACES_SIDEBAR (widget);
+ 
+-    gtk_widget_size_allocate (sidebar->swin,
++    gtk_widget_size_allocate (sidebar->root_box,
+                               &(GtkAllocation) { 0, 0, width, height },
+                               baseline);
+ 
+diff --git a/src/nautilus-sidebar-config.c b/src/nautilus-sidebar-config.c
+new file mode 100644
+index 0000000..b96b597
+--- /dev/null
++++ b/src/nautilus-sidebar-config.c
+@@ -0,0 +1,1697 @@
++/* nautilus-sidebar-config.c — CodLab (INC-4): finestra «Configura» per i
++ * gruppi della barra laterale.
++ *
++ * Oggi i gruppi Dischi/Lavoro/Plex si configurano solo a mano: barra.ini
++ * (Plex) e segnalibri GTK (Lavoro). Questa finestra li edita dalla UI:
++ * crea una voce, la rinomina e aggiunge una cartella (il selettore di
++ * Nautilus stesso, NAUTILUS_MODE_OPEN_FOLDER). Il gruppo Dischi segue i
++ * volumi del sistema: compare solo come riga informativa.
++ *
++ * «Sposta su», «Sposta giù» e «Cambia icona» (voci Plex: è l'unico
++ * formato che supporta l'icona) NON sono nella finestra dal 03.11.2026
++ * (richiesta: «nascondi icona e sposta»), perché non hanno prove. Il
++ * loro codice resta in questo file per INC-4b, spento dal preprocessore
++ * nei blocchi «#ifdef CODLAB_INC4B»: senza quella definizione non entra
++ * nel binario, quindi nessun bottone, nessun tasto e nessun menu li
++ * raggiunge. Si riaccendono definendo CODLAB_INC4B, con le loro prove.
++ *
++ * Regole ferree (lezioni INC-1/2/3, le cercano i revisori):
++ *  - barra.ini resta nel formato della patch blocchi-barra: una sezione
++ *    per voce, Name e Uri obbligatori, Icon facoltativa, ordine delle
++ *    sezioni = ordine nel gruppo (GKeyFile preserva l'ordine sia in
++ *    lettura sia in scrittura: verificato prima di scriverlo). La
++ *    finestra ne MOSTRA le prime SEZIONI_BARRA, come la barra, ma le
++ *    carica TUTTE, e il file lo scrive SUL POSTO: parte dai byte letti
++ *    (commenti, righe vuote, traduzioni, sezioni che la barra scarta,
++ *    chiavi extra) e cambia solo cio' che la finestra ha cambiato, cioe'
++ *    il Name di una voce o una sezione nuova in fondo. S1 della revisione
++ *    del 04.11: il 2.3 caricava le prime 64 sezioni e riscriveva il
++ *    file con quelle sole;
++ *  - i segnalibri GTK restano nel formato «uri etichetta» una riga per
++ *    voce; le righe non interpretabili si riportano identiche;
++ *  - una scrittura che perderebbe dati RIFIUTA, avvisa e non tocca ne'
++ *    il file ne' il .bak: se il file sul disco non e' piu' quello letto
++ *    dalla finestra (l'ha cambiato un altro programma: si chiude e si
++ *    riapre la finestra), se non si legge, o se il contenuto nuovo non
++ *    ha tutte le sezioni e le chiavi (barra.ini) o tutte le righe
++ *    (segnalibri) di quello di prima. Chi chiama rimette il modello
++ *    com'era: finestra e file restano uguali;
++ *  - ogni scrittura è atomica (g_file_set_contents: temporaneo + rename)
++ *    e prima di scrivere lascia la copia di prima in <file>.bak;
++ *  - la chiave org.gnome.nautilus.codlab:gruppi-personalizzati si scrive
++ *    solo dopo una modifica riuscita, con la guardia has_key per-chiave:
++ *    con uno schema vecchio la finestra funziona lo stesso, niente abort;
++ *  - niente template: tutta l'interfaccia è costruita qui in C, quindi
++ *    niente callback di template da bindare (zero Gtk-CRITICAL);
++ *  - la barra laterale si aggiorna da sola: i monitor di barra.ini e dei
++ *    segnalibri già esistono (patch blocchi-barra / NautilusBookmarkList)
++ *    — MA il watch inotify di barra.ini è condiviso con la sidebar
++ *    interna del selettore e muore con lei (misurato 02.11): per questo
++ *    ogni salva_ini risveglia subito la barra e alla chiusura del
++ *    selettore si arma un monitor di riserva (vedi risveglia_barra).
++ */
++
++#include <glib/gi18n.h>
++#include <adwaita.h>
++
++#include "nautilus-application.h"
++#include "nautilus-bookmark-list.h"
++#include "nautilus-file-chooser.h"
++#include "nautilus-global-preferences.h"
++#include "nautilus-sidebar-config.h"
++
++/* il sottotitolo della finestra dice solo cio' che la finestra fa */
++#ifdef CODLAB_INC4B
++#define SOTTOTITOLO_CONFIGURA N_("Create, rename and move the entries")
++#else
++#define SOTTOTITOLO_CONFIGURA N_("Create and rename the entries")
++#endif
++
++/* le sezioni di barra.ini che la barra mostra (patch blocchi-barra): la
++ * finestra mostra le stesse e non ne crea oltre; il file le tiene tutte */
++#define SEZIONI_BARRA 64
++/* barra.ini si legge e si riscrive con commenti, righe vuote e traduzioni */
++#define FLAG_INI (G_KEY_FILE_KEEP_COMMENTS | G_KEY_FILE_KEEP_TRANSLATIONS)
++
++/* ------------------------------------------------- risveglio della barra
++ *
++ * Il monitor di barra.ini della barra laterale e il monitor della
++ * sidebar INTERNA del selettore condividono lo stesso watch inotify del
++ * kernel: quando il selettore si chiude, il suo g_clear_object cancella
++ * il watch e il monitor della barra resta SORDO (misurato 02.11: la
++ * voce veniva scritta e la barra vera non si aggiornava, ne' allora ne'
++ * per le scritture successive; il monitor dei segnalibri non c'entra,
++ * vive sulla lista dell'applicazione). Due rimedi, entrambi qui:
++ *  - dopo OGNI salva_ini si emette «changed» sulla lista segnalibri
++ *    dell'applicazione, che la barra gia' ascolta con update_places
++ *    (ricostruzione completa, rilegge anche barra.ini);
++ *  - alla distruzione del selettore si arma un monitor DI RISERVA su
++ *    barra.ini (nuovo watch, mai cancellato: vive quanto il processo)
++ *    che fa lo stesso per le scritture future. */
++
++static GFileMonitor *monitor_barra_riserva = NULL;
++
++static char *percorso_barra_ini (void);
++
++static void
++risveglia_barra (void)
++{
++    NautilusApplication *app = NAUTILUS_APPLICATION (g_application_get_default ());
++
++    if (app != NULL)
++    {
++        g_signal_emit_by_name (nautilus_application_get_bookmarks (app),
++                               "changed");
++    }
++}
++
++static void
++barra_ini_cambiata_riserva (GFileMonitor      *monitor,
++                            GFile             *file,
++                            GFile             *altro_file,
++                            GFileMonitorEvent  evento,
++                            gpointer           dato)
++{
++    if (evento == G_FILE_MONITOR_EVENT_CHANGES_DONE_HINT ||
++        evento == G_FILE_MONITOR_EVENT_CREATED ||
++        evento == G_FILE_MONITOR_EVENT_DELETED ||
++        evento == G_FILE_MONITOR_EVENT_RENAMED ||
++        evento == G_FILE_MONITOR_EVENT_MOVED_IN ||
++        evento == G_FILE_MONITOR_EVENT_MOVED_OUT)
++    {
++        risveglia_barra ();
++    }
++}
++
++static void
++arma_monitor_barra (GtkWidget *oggetto,
++                    gpointer   dato)
++{
++    (void) oggetto;
++    (void) dato;
++
++    if (monitor_barra_riserva != NULL)
++    {
++        return;
++    }
++    g_autofree char *percorso = percorso_barra_ini ();
++    g_autoptr (GFile) file = g_file_new_for_path (percorso);
++
++    monitor_barra_riserva = g_file_monitor_file (file, G_FILE_MONITOR_NONE,
++                                                 NULL, NULL);
++    if (monitor_barra_riserva != NULL)
++    {
++        g_signal_connect (monitor_barra_riserva, "changed",
++                          G_CALLBACK (barra_ini_cambiata_riserva), NULL);
++    }
++}
++
++/* ---------------------------------------------------------------- modello */
++
++typedef struct
++{
++    char *sezione;      /* nome della sezione INI, es. «Folder 02» */
++    gboolean valida;    /* Name + Uri file:/// presenti (il lettore la mostra) */
++    char *nome;         /* Name */
++    char *uri;          /* Uri */
++    char *icona;        /* Icon, "" se assente */
++} SezioneIni;
++
++typedef struct
++{
++    char *uri;
++    char *etichetta;    /* può essere "" */
++    char *grezza;       /* riga non interpretabile: si riporta identica */
++} RigaSegnalibro;
++
++typedef struct
++{
++    GtkWidget *finestra;
++    GtkWidget *titolo;          /* AdwWindowTitle */
++    GtkWidget *lista_lavoro;    /* GtkListBox */
++    GtkWidget *lista_plex;      /* GtkListBox */
++    GtkWidget *btn_rinomina;
++#ifdef CODLAB_INC4B
++    GtkWidget *btn_icona;
++    GtkWidget *btn_su;
++    GtkWidget *btn_giu;
++#endif
++    GPtrArray *ini;             /* SezioneIni, in ordine di file */
++    GPtrArray *segnalibri;      /* RigaSegnalibro, in ordine di file */
++    GKeyFile *kf_lettura;       /* barra.ini com'e' sul disco (FLAG_INI) */
++    GBytes *ini_letto;          /* byte di barra.ini letti o scritti per ultimi; NULL: assente */
++    gboolean ini_illeggibile;   /* barra.ini c'e' ma non si legge: non si riscrive */
++    GBytes *seg_letto;          /* lo stesso per i segnalibri */
++    gboolean seg_illeggibili;
++    GtkListBoxRow *sel_lavoro;  /* selezione corrente (una sola lista) */
++    GtkListBoxRow *sel_plex;
++} StatoConfig;
++
++/* parametri dei dialoghi, vivi quanto il dialogo che li porta */
++typedef struct
++{
++    StatoConfig *st;
++    gboolean plex;
++    int indice;             /* -1 per la voce NUOVA */
++    GtkWidget *voce_nome;
++    GtkWidget *voce_cartella;
++    GtkWidget *voce_icona;
++    GtkWidget *anteprima;
++} DatiDialogo;
++
++static void ricostruisci_lavoro (StatoConfig *st);
++static void ricostruisci_plex (StatoConfig *st);
++static void aggiorna_bottoni (StatoConfig *st);
++static gboolean salva_ini (StatoConfig *st);
++static gboolean salva_segnalibri (StatoConfig *st);
++static void su_conferma_dialogo (GtkButton *pulsante, gpointer dato);
++
++/* ------------------------------------------------------------ percorsi */
++
++static char *
++percorso_barra_ini (void)
++{
++    return g_build_filename (g_get_user_config_dir (), "nautilus-codlab",
++                             "barra.ini", NULL);
++}
++
++static char *
++percorso_segnalibri (void)
++{
++    /* Stesso percorso di nautilus_bookmark_list_get_file(): con
++     * XDG_CONFIG_HOME (isola delle prove) g_get_user_config_dir() lo
++     * segue, quindi i segnalibri VERI dell'utente non si toccano mai. */
++    return g_build_filename (g_get_user_config_dir (), "gtk-3.0",
++                             "bookmarks", NULL);
++}
++
++/* ------------------------------------------------- scrittura atomica+bak */
++
++/* Scrive contenuto su percorso in modo atomico (temporaneo + rename,
++ * è g_file_set_contents) lasciando PRIMA la copia del contenuto attuale
++ * in <percorso>.bak. Torna FALSE con errore impostato se la copia o la
++ * scrittura falliscono: in quel caso il file originale è intatto. */
++static gboolean
++scrivi_con_copia (const char *percorso, const char *contenuto, GError **errore)
++{
++    if (g_file_test (percorso, G_FILE_TEST_EXISTS))
++    {
++        g_autofree char *vecchio = NULL;
++        g_autofree char *bak = g_strconcat (percorso, ".bak", NULL);
++
++        if (!g_file_get_contents (percorso, &vecchio, NULL, errore))
++        {
++            return FALSE;
++        }
++        if (!g_file_set_contents (bak, vecchio, -1, errore))
++        {
++            return FALSE;
++        }
++    }
++    return g_file_set_contents (percorso, contenuto, -1, errore);
++}
++
++/* I byte di un file, o NULL con l'errore (G_FILE_ERROR_NOENT: non c'e'). */
++static GBytes *
++leggi_byte (const char *percorso, GError **errore)
++{
++    char *contenuto = NULL;
++    gsize lunghezza = 0;
++
++    if (!g_file_get_contents (percorso, &contenuto, &lunghezza, errore))
++    {
++        return NULL;
++    }
++    return g_bytes_new_take (contenuto, lunghezza);
++}
++
++/* Il testo (terminato) di byte letti; "" per NULL o per un file vuoto. */
++static char *
++testo_di (GBytes *byte)
++{
++    gsize lunghezza = 0;
++    const char *dati = byte != NULL ? g_bytes_get_data (byte, &lunghezza) : NULL;
++
++    return g_strndup (dati != NULL ? dati : "", lunghezza);
++}
++
++/* Il file sul disco e' ancora quello che la finestra ha letto, o scritto
++ * per ultima? Anche: assente allora e assente adesso. */
++static gboolean
++disco_come_letto (const char *percorso, GBytes *letto)
++{
++    g_autoptr (GError) errore = NULL;
++    g_autoptr (GBytes) ora = leggi_byte (percorso, &errore);
++
++    if (ora == NULL)
++    {
++        return letto == NULL && g_error_matches (errore, G_FILE_ERROR, G_FILE_ERROR_NOENT);
++    }
++    return letto != NULL && g_bytes_equal (ora, letto);
++}
++
++/* Una scrittura rifiutata: niente e' stato scritto, ne' il file ne' il .bak. */
++static void
++avvisa_non_salvato (StatoConfig *st, const char *corpo)
++{
++    AdwDialog *avviso = adw_alert_dialog_new (_("Not saved"), corpo);
++
++    adw_alert_dialog_add_response (ADW_ALERT_DIALOG (avviso), "ok", _("Cancel"));
++    adw_dialog_present (avviso, st->finestra);
++}
++
++/* La guardia comune, PRIMA di comporre il contenuto nuovo: il file deve
++ * leggersi ed essere ancora quello letto dalla finestra. Se un altro
++ * programma l'ha cambiato (genera-plex, un segnalibro aggiunto da un'altra
++ * finestra, una modifica a mano) si rifiuta: riscriverlo dal modello lo
++ * cancellerebbe, e alla scrittura dopo anche dal .bak. */
++static gboolean
++si_puo_scrivere (StatoConfig *st, const char *percorso, GBytes *letto,
++                 gboolean illeggibile)
++{
++    if (illeggibile)
++    {
++        avvisa_non_salvato (st, _("The file cannot be read: nothing was saved."));
++        return FALSE;
++    }
++    if (!disco_come_letto (percorso, letto))
++    {
++        avvisa_non_salvato (st, _("The file was changed outside this window: nothing was saved. Close the window and open it again."));
++        return FALSE;
++    }
++    return TRUE;
++}
++
++/* ------------------------------------------------------------- barra.ini */
++
++static void
++sezione_ini_free (gpointer dato)
++{
++    SezioneIni *s = dato;
++
++    g_free (s->sezione);
++    g_free (s->nome);
++    g_free (s->uri);
++    g_free (s->icona);
++    g_free (s);
++}
++
++/* Carica TUTTE le sezioni di barra.ini, NELLO STESSO ORDINE che leggerà la
++ * barra (g_key_file_get_groups della patch blocchi-barra; GKeyFile preserva
++ * l'ordine del file: verificato). La finestra mostra le prime
++ * SEZIONI_BARRA, come la barra; le altre restano nel modello e nel file.
++ * Le sezioni invalide restano nel modello (valida=FALSE) e nel file. */
++static void
++carica_ini (StatoConfig *st)
++{
++    g_autofree char *percorso = percorso_barra_ini ();
++    g_autoptr (GError) errore = NULL;
++    g_auto (GStrv) gruppi = NULL;
++
++    st->ini = g_ptr_array_new_with_free_func (sezione_ini_free);
++    st->kf_lettura = g_key_file_new ();
++
++    st->ini_letto = leggi_byte (percorso, &errore);
++    if (st->ini_letto == NULL)
++    {
++        /* assente: la prima voce lo crea; c'e' ma non si legge: mai riscritto */
++        st->ini_illeggibile = !g_error_matches (errore, G_FILE_ERROR, G_FILE_ERROR_NOENT);
++        return;
++    }
++    if (!g_key_file_load_from_bytes (st->kf_lettura, st->ini_letto, FLAG_INI, NULL))
++    {
++        /* non e' un keyfile (la barra non ne mostra niente): mai riscritto */
++        st->ini_illeggibile = TRUE;
++        return;
++    }
++
++    gruppi = g_key_file_get_groups (st->kf_lettura, NULL);
++    for (guint i = 0; gruppi != NULL && gruppi[i] != NULL; i++)
++    {
++        SezioneIni *s = g_new0 (SezioneIni, 1);
++
++        s->sezione = g_strdup (gruppi[i]);
++        s->nome = g_key_file_get_string (st->kf_lettura, gruppi[i], "Name", NULL);
++        s->uri = g_key_file_get_string (st->kf_lettura, gruppi[i], "Uri", NULL);
++        s->icona = g_key_file_get_string (st->kf_lettura, gruppi[i], "Icon", NULL);
++        /* stessa validità del lettore della barra: Name non vuoto (senza
++         * a-capo) e Uri file:/// */
++        s->valida = (s->nome != NULL && *s->nome != '\0' &&
++                     strpbrk (s->nome, "\r\n") == NULL &&
++                     s->uri != NULL && g_str_has_prefix (s->uri, "file:///"));
++        g_ptr_array_add (st->ini, s);
++    }
++}
++
++/* Mette chiave=valore solo se nel keyfile il valore e' diverso (o manca):
++ * cio' che la finestra non ha cambiato resta scritto com'era, escape
++ * compresi. */
++static void
++imposta_se_diversa (GKeyFile *kf, const char *sezione, const char *chiave,
++                    const char *valore)
++{
++    g_autofree char *attuale = g_key_file_get_string (kf, sezione, chiave, NULL);
++
++    if (valore != NULL && g_strcmp0 (attuale, valore) != 0)
++    {
++        g_key_file_set_string (kf, sezione, chiave, valore);
++    }
++}
++
++/* Il contenuto nuovo ha TUTTE le sezioni e TUTTE le chiavi (traduzioni
++ * comprese) del file letto? Se ne manca anche una sola, non si scrive. */
++static gboolean
++nessuna_perdita (GKeyFile *prima, const char *contenuto, gsize lunghezza)
++{
++    g_autoptr (GKeyFile) dopo = g_key_file_new ();
++    g_auto (GStrv) gruppi = g_key_file_get_groups (prima, NULL);
++
++    if (!g_key_file_load_from_data (dopo, contenuto, lunghezza,
++                                    G_KEY_FILE_KEEP_TRANSLATIONS, NULL))
++    {
++        return FALSE;
++    }
++    for (guint i = 0; gruppi != NULL && gruppi[i] != NULL; i++)
++    {
++        g_auto (GStrv) chiavi = g_key_file_get_keys (prima, gruppi[i], NULL, NULL);
++
++        if (!g_key_file_has_group (dopo, gruppi[i]))
++        {
++            return FALSE;
++        }
++        for (guint k = 0; chiavi != NULL && chiavi[k] != NULL; k++)
++        {
++            if (!g_key_file_has_key (dopo, gruppi[i], chiavi[k], NULL))
++            {
++                return FALSE;
++            }
++        }
++    }
++    return TRUE;
++}
++
++/* Scrive barra.ini SUL POSTO (vedi la testata del file): dai byte letti,
++ * cambiando solo Name/Uri/Icon dove il modello e' diverso e aggiungendo in
++ * fondo le sezioni nuove; le sezioni che la barra scarta, le chiavi extra,
++ * i commenti e le traduzioni restano come sono. Rende FALSE senza aver
++ * scritto niente (ne' il file ne' il .bak) se la guardia rifiuta, se il
++ * contenuto nuovo perderebbe una sezione o una chiave o se la scrittura
++ * fallisce: chi chiama rimette il modello com'era. */
++static gboolean
++salva_ini (StatoConfig *st)
++{
++    g_autoptr (GKeyFile) nuovo = g_key_file_new ();
++    g_autofree char *percorso = percorso_barra_ini ();
++    g_autofree char *contenuto = NULL;
++    gsize lunghezza = 0;
++    g_autoptr (GError) errore = NULL;
++
++    if (!si_puo_scrivere (st, percorso, st->ini_letto, st->ini_illeggibile))
++    {
++        return FALSE;
++    }
++    if (st->ini_letto != NULL &&
++        !g_key_file_load_from_bytes (nuovo, st->ini_letto, FLAG_INI, NULL))
++    {
++        avvisa_non_salvato (st, _("The file cannot be read: nothing was saved."));
++        return FALSE;
++    }
++    for (guint i = 0; i < st->ini->len; i++)
++    {
++        SezioneIni *s = g_ptr_array_index (st->ini, i);
++
++        if (!s->valida)
++        {
++            continue;       /* la barra la scarta: resta com'e' */
++        }
++        imposta_se_diversa (nuovo, s->sezione, "Name", s->nome);
++        imposta_se_diversa (nuovo, s->sezione, "Uri", s->uri);
++        if (s->icona != NULL && *s->icona != '\0')
++        {
++            imposta_se_diversa (nuovo, s->sezione, "Icon", s->icona);
++        }
++    }
++
++    contenuto = g_key_file_to_data (nuovo, &lunghezza, NULL);
++    if (contenuto == NULL)
++    {
++        return FALSE;
++    }
++    if (!nessuna_perdita (st->kf_lettura, contenuto, lunghezza))
++    {
++        avvisa_non_salvato (st, _("The new content would lose entries of the file: nothing was saved."));
++        return FALSE;
++    }
++    if (!scrivi_con_copia (percorso, contenuto, &errore))
++    {
++        g_warning ("Configura: impossibile scrivere %s: %s", percorso,
++                   errore != NULL ? errore->message : "?");
++        avvisa_non_salvato (st, _("The file cannot be written: nothing was saved."));
++        return FALSE;
++    }
++    /* il file appena scritto e' la base delle PROSSIME modifiche */
++    g_bytes_unref (st->ini_letto);
++    st->ini_letto = g_bytes_new_take (g_steal_pointer (&contenuto), lunghezza);
++    g_key_file_load_from_bytes (st->kf_lettura, st->ini_letto, FLAG_INI, NULL);
++    nautilus_codlab_preferences_set_gruppi_personalizzati (TRUE);
++    /* il monitor della barra puo' essere sordo (vedi arma_monitor_barra):
++     * si risveglia subito, qui, senza aspettare gli eventi */
++    risveglia_barra ();
++    return TRUE;
++}
++
++/* Nuovo nome di sezione univoco, nello stile di genera-plex.py. */
++static char *
++nuova_sezione_ini (StatoConfig *st)
++{
++    for (guint n = 1; n <= 999; n++)
++    {
++        g_autofree char *candidato = g_strdup_printf ("Folder %02u", n);
++        gboolean usato = FALSE;
++
++        for (guint i = 0; i < st->ini->len; i++)
++        {
++            SezioneIni *s = g_ptr_array_index (st->ini, i);
++            if (g_strcmp0 (s->sezione, candidato) == 0)
++            {
++                usato = TRUE;
++                break;
++            }
++        }
++        if (!usato)
++        {
++            return g_steal_pointer (&candidato);
++        }
++    }
++    return g_strdup ("Folder nuova");
++}
++
++/* ------------------------------------------------------------ segnalibri */
++
++static void
++riga_segnalibro_free (gpointer dato)
++{
++    RigaSegnalibro *r = dato;
++
++    g_free (r->uri);
++    g_free (r->etichetta);
++    g_free (r->grezza);
++    g_free (r);
++}
++
++static void
++carica_segnalibri (StatoConfig *st)
++{
++    g_autofree char *percorso = percorso_segnalibri ();
++    g_autofree char *contenuto = NULL;
++    g_autoptr (GError) errore = NULL;
++    g_auto (GStrv) righe = NULL;
++
++    st->segnalibri = g_ptr_array_new_with_free_func (riga_segnalibro_free);
++
++    st->seg_letto = leggi_byte (percorso, &errore);
++    if (st->seg_letto == NULL)
++    {
++        /* assenti: la prima voce li crea; ci sono ma non si leggono: mai riscritti */
++        st->seg_illeggibili = !g_error_matches (errore, G_FILE_ERROR, G_FILE_ERROR_NOENT);
++        return;
++    }
++    contenuto = testo_di (st->seg_letto);
++    righe = g_strsplit (contenuto, "\n", -1);
++    for (guint i = 0; righe != NULL && righe[i] != NULL; i++)
++    {
++        if (*righe[i] == '\0')
++        {
++            continue;
++        }
++        RigaSegnalibro *r = g_new0 (RigaSegnalibro, 1);
++        char *spazio = strchr (righe[i], ' ');
++
++        if (spazio == NULL)
++        {
++            r->uri = g_strdup (righe[i]);
++            r->etichetta = g_strdup ("");
++        }
++        else
++        {
++            r->uri = g_strndup (righe[i], spazio - righe[i]);
++            r->etichetta = g_strdup (spazio + 1);
++        }
++        /* riga non interpretabile come URI con schema: si riporta identica */
++        if (r->uri == NULL || strstr (r->uri, "://") == NULL)
++        {
++            g_free (r->uri);
++            g_free (r->etichetta);
++            r->uri = NULL;
++            r->etichetta = NULL;
++            r->grezza = g_strdup (righe[i]);
++        }
++        g_ptr_array_add (st->segnalibri, r);
++    }
++}
++
++/* Il testo nuovo dei segnalibri ha tutte le righe di prima? Si contano per
++ * URI (la riga intera se non e' «uri etichetta»), doppioni compresi: la
++ * rinomina cambia l'etichetta, mai l'URI. */
++static gboolean
++nessuna_riga_persa (GBytes *prima, const char *dopo)
++{
++    g_autoptr (GHashTable) conta = g_hash_table_new_full (g_str_hash, g_str_equal,
++                                                          g_free, NULL);
++    g_autofree char *vecchio = testo_di (prima);
++    const char *testi[2] = { vecchio, dopo };
++    GHashTableIter it;
++    gpointer n;
++
++    for (guint t = 0; t < 2; t++)
++    {
++        g_auto (GStrv) righe = g_strsplit (testi[t], "\n", -1);
++
++        for (guint i = 0; righe[i] != NULL; i++)
++        {
++            const char *spazio = strchr (righe[i], ' ');
++            char *chiave;
++
++            if (*righe[i] == '\0')
++            {
++                continue;
++            }
++            chiave = spazio != NULL ? g_strndup (righe[i], spazio - righe[i]) :
++                                      g_strdup (righe[i]);
++            n = g_hash_table_lookup (conta, chiave);
++            g_hash_table_replace (conta, chiave,
++                                  GINT_TO_POINTER (GPOINTER_TO_INT (n) + (t == 0 ? 1 : -1)));
++        }
++    }
++    g_hash_table_iter_init (&it, conta);
++    while (g_hash_table_iter_next (&it, NULL, &n))
++    {
++        if (GPOINTER_TO_INT (n) > 0)
++        {
++            return FALSE;
++        }
++    }
++    return TRUE;
++}
++
++/* Scrive i segnalibri dal modello, con le stesse guardie di salva_ini e
++ * lo stesso contratto: FALSE senza aver scritto niente. */
++static gboolean
++salva_segnalibri (StatoConfig *st)
++{
++    g_autofree char *percorso = percorso_segnalibri ();
++    g_autoptr (GString) testo = g_string_new (NULL);
++    g_autoptr (GError) errore = NULL;
++
++    if (!si_puo_scrivere (st, percorso, st->seg_letto, st->seg_illeggibili))
++    {
++        return FALSE;
++    }
++    for (guint i = 0; i < st->segnalibri->len; i++)
++    {
++        RigaSegnalibro *r = g_ptr_array_index (st->segnalibri, i);
++
++        if (r->grezza != NULL)
++        {
++            g_string_append_printf (testo, "%s\n", r->grezza);
++        }
++        else if (*r->etichetta == '\0')
++        {
++            g_string_append_printf (testo, "%s\n", r->uri);
++        }
++        else
++        {
++            g_string_append_printf (testo, "%s %s\n", r->uri, r->etichetta);
++        }
++    }
++    if (!nessuna_riga_persa (st->seg_letto, testo->str))
++    {
++        avvisa_non_salvato (st, _("The new content would lose entries of the file: nothing was saved."));
++        return FALSE;
++    }
++    if (!scrivi_con_copia (percorso, testo->str, &errore))
++    {
++        g_warning ("Configura: impossibile scrivere %s: %s", percorso,
++                   errore != NULL ? errore->message : "?");
++        avvisa_non_salvato (st, _("The file cannot be written: nothing was saved."));
++        return FALSE;
++    }
++    g_bytes_unref (st->seg_letto);
++    st->seg_letto = g_bytes_new (testo->str, testo->len);
++    nautilus_codlab_preferences_set_gruppi_personalizzati (TRUE);
++    return TRUE;
++}
++
++/* -------------------------------------------------------------- utilità */
++
++/* L'etichetta da mostrare per un URI: il nome finale del percorso, come
++ * fa la barra con i segnalibri locali. */
++static char *
++etichetta_uri (const char *uri)
++{
++    if (uri == NULL)
++    {
++        return g_strdup ("");
++    }
++    g_autoptr (GFile) file = g_file_new_for_uri (uri);
++
++    if (g_file_is_native (file))
++    {
++        char *base = g_file_get_basename (file);
++
++        return base != NULL ? base : g_strdup (uri);
++    }
++    return g_uri_unescape_string (uri, NULL);
++}
++
++/* Esiste già una voce con questo URI nel gruppo? (rifiuta i doppioni:
++ * plex=FALSE cerca nei segnalibri, plex=TRUE nelle sezioni di barra.ini) */
++static gboolean
++uri_gia_presente (StatoConfig *st, gboolean plex, const char *uri)
++{
++    GPtrArray *voci = plex ? st->ini : st->segnalibri;
++
++    for (guint i = 0; i < voci->len; i++)
++    {
++        const char *altro = plex ?
++                            ((SezioneIni *) g_ptr_array_index (voci, i))->uri :
++                            ((RigaSegnalibro *) g_ptr_array_index (voci, i))->uri;
++
++        if (g_strcmp0 (altro, uri) == 0)
++        {
++            return TRUE;
++        }
++    }
++    return FALSE;
++}
++
++/* Aggiunge una voce Plex o Lavoro da un GFile già validato come cartella,
++ * con la sua etichetta. Ritorna TRUE se aggiunta (e salvata). */
++static gboolean
++aggiungi_voce (StatoConfig *st, gboolean plex, GFile *cartella,
++               const char *nome, const char *icona)
++{
++    g_autofree char *uri = g_file_get_uri (cartella);
++    GPtrArray *voci = plex ? st->ini : st->segnalibri;
++
++    if (uri_gia_presente (st, plex, uri))
++    {
++        return FALSE;
++    }
++    if (plex && voci->len >= SEZIONI_BARRA)
++    {
++        return FALSE;
++    }
++    if (plex)
++    {
++        SezioneIni *s = g_new0 (SezioneIni, 1);
++
++        s->sezione = nuova_sezione_ini (st);
++        s->valida = TRUE;
++        s->nome = g_strdup (nome != NULL && *nome != '\0' ? nome : uri);
++        s->uri = g_strdup (uri);
++        s->icona = g_strdup (icona != NULL ? icona : "");
++        g_ptr_array_add (voci, s);
++        if (!salva_ini (st))
++        {
++            /* niente scritto: la voce esce anche dal modello */
++            g_ptr_array_remove_index (voci, voci->len - 1);
++            return FALSE;
++        }
++        ricostruisci_plex (st);
++    }
++    else
++    {
++        RigaSegnalibro *r = g_new0 (RigaSegnalibro, 1);
++
++        r->uri = g_strdup (uri);
++        r->etichetta = g_strdup (nome != NULL && *nome != '\0' ? nome : "");
++        g_ptr_array_add (voci, r);
++        if (!salva_segnalibri (st))
++        {
++            g_ptr_array_remove_index (voci, voci->len - 1);
++            return FALSE;
++        }
++        ricostruisci_lavoro (st);
++    }
++    GtkListBox *lista = plex ? GTK_LIST_BOX (st->lista_plex) :
++                       GTK_LIST_BOX (st->lista_lavoro);
++
++    gtk_list_box_select_row (lista, gtk_list_box_get_row_at_index (
++                                 lista, (plex ? st->ini : st->segnalibri)->len - 1));
++    aggiorna_bottoni (st);
++    return TRUE;
++}
++
++static void
++avvisa (StatoConfig *st, const char *corpo)
++{
++    AdwDialog *avviso = adw_alert_dialog_new (_("Cannot add"), corpo);
++
++    adw_alert_dialog_add_response (ADW_ALERT_DIALOG (avviso), "ok", _("Cancel"));
++    adw_dialog_present (avviso, st->finestra);
++}
++
++/* ------------------------------------------------------------ interfaccia */
++
++static void
++aggiorna_sottotitolo (StatoConfig *st)
++{
++    if (nautilus_codlab_preferences_get_gruppi_personalizzati ())
++    {
++        adw_window_title_set_subtitle (ADW_WINDOW_TITLE (st->titolo),
++                                       _("Personalized"));
++    }
++}
++
++static void
++aggiorna_bottoni (StatoConfig *st)
++{
++    GtkListBoxRow *riga = st->sel_plex != NULL ? st->sel_plex : st->sel_lavoro;
++
++    gtk_widget_set_sensitive (st->btn_rinomina, riga != NULL);
++#ifdef CODLAB_INC4B
++    gboolean plex = st->sel_plex != NULL;
++
++    gtk_widget_set_sensitive (st->btn_icona, plex);
++    gtk_widget_set_sensitive (st->btn_su, riga != NULL);
++    gtk_widget_set_sensitive (st->btn_giu, riga != NULL);
++    if (riga != NULL)
++    {
++        GPtrArray *voci = plex ? st->ini : st->segnalibri;
++        int indice = GPOINTER_TO_INT (g_object_get_data (G_OBJECT (riga), "indice"));
++
++        gtk_widget_set_sensitive (st->btn_su, indice > 0);
++        gtk_widget_set_sensitive (st->btn_giu, (guint) indice < voci->len - 1);
++    }
++#endif
++}
++
++static void
++su_selezione (GtkListBox *box, GtkListBoxRow *riga, gpointer dato)
++{
++    StatoConfig *st = dato;
++
++    if (riga != NULL)
++    {
++        /* una sola lista seleziona alla volta */
++        if (box == GTK_LIST_BOX (st->lista_lavoro))
++        {
++            st->sel_lavoro = riga;
++            st->sel_plex = NULL;
++            gtk_list_box_select_row (GTK_LIST_BOX (st->lista_plex), NULL);
++        }
++        else
++        {
++            st->sel_plex = riga;
++            st->sel_lavoro = NULL;
++            gtk_list_box_select_row (GTK_LIST_BOX (st->lista_lavoro), NULL);
++        }
++    }
++    /* la lista ha perso la selezione: GtkListBox lo dice DOPO aver tolto
++     * la riga selezionata (ricostruisci_*, chiusura della finestra), che
++     * a quel punto e' gia' distrutta. Il SUO puntatore si azzera qui,
++     * prima che aggiorna_bottoni lo legga (03.11, prova nuova:
++     * GLib-GObject-CRITICAL in g_object_get_data sulla riga distrutta) */
++    else if (box == GTK_LIST_BOX (st->lista_lavoro))
++    {
++        st->sel_lavoro = NULL;
++    }
++    else
++    {
++        st->sel_plex = NULL;
++    }
++    aggiorna_bottoni (st);
++}
++
++#ifdef CODLAB_INC4B
++/* INC-4b, spento: «Sposta su» e «Sposta giù» (vedi la testata del file) */
++static void
++sposta (StatoConfig *st, int verso)
++{
++    GtkListBoxRow *riga = st->sel_plex != NULL ? st->sel_plex : st->sel_lavoro;
++    gboolean plex = st->sel_plex != NULL;
++
++    if (riga == NULL)
++    {
++        return;
++    }
++    int indice = GPOINTER_TO_INT (g_object_get_data (G_OBJECT (riga), "indice"));
++    GPtrArray *voci = plex ? st->ini : st->segnalibri;
++    int nuovo = indice + verso;
++
++    if (nuovo < 0 || (guint) nuovo >= voci->len)
++    {
++        return;
++    }
++    gpointer tmp = g_ptr_array_index (voci, indice);
++
++    g_ptr_array_index (voci, indice) = g_ptr_array_index (voci, nuovo);
++    g_ptr_array_index (voci, nuovo) = tmp;
++
++    if (plex)
++    {
++        salva_ini (st);
++        ricostruisci_plex (st);
++    }
++    else
++    {
++        salva_segnalibri (st);
++        ricostruisci_lavoro (st);
++    }
++    /* la riga spostata resta selezionata, al suo posto nuovo */
++    GtkListBox *lista = plex ? GTK_LIST_BOX (st->lista_plex) : GTK_LIST_BOX (st->lista_lavoro);
++    GtkListBoxRow *nuova_riga = gtk_list_box_get_row_at_index (lista, nuovo);
++
++    if (nuova_riga != NULL)
++    {
++        gtk_list_box_select_row (lista, nuova_riga);
++    }
++    aggiorna_bottoni (st);
++}
++#endif
++
++/* ------------------------------------------------- dialoghi (AdwDialog) */
++
++static void
++dati_dialogo_free (gpointer dato)
++{
++    g_free (dato);
++}
++
++/* Chiude il dialogo dall'«Annulla» (o dopo la conferma riuscita). */
++static void
++chiudi_dialogo_da_bottone (GtkButton *pulsante, gpointer dato)
++{
++    adw_dialog_close (ADW_DIALOG (dato));
++}
++
++/* Aggiunge la riga delle risposte in FONDO al dialogo (come AdwAlertDialog):
++ * «Annulla» e il bottone PRIMARIO a destra. Nella testata il pack_end NON
++ * compariva (misurato su X11/AdwDialog: solo titolo e Annulla), e la riga
++ * in basso e' anche piu' leggibile per l'OCR delle prove. Il primario resta
++ * SENZA classe suggested-action: in questo ambiente il bianco-su-azzurro
++ * e' illeggibile per tesseract (misurato 01.11 su crop al 400%) e le prove
++ * cliccano proprio quel bottone. */
++static void
++fondo_con_risposta (AdwDialog *dialogo, GtkWidget *vista,
++                    const char *etichetta,
++                    gboolean (*conferma) (DatiDialogo *), DatiDialogo *d)
++{
++    GtkWidget *fondo = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 8);
++    GtkWidget *spazio = gtk_label_new ("");
++    GtkWidget *annulla = gtk_button_new_with_label (_("Cancel"));
++    GtkWidget *primario = gtk_button_new_with_label (etichetta);
++
++    gtk_widget_set_hexpand (spazio, TRUE);
++    g_signal_connect (annulla, "clicked", G_CALLBACK (chiudi_dialogo_da_bottone),
++                      dialogo);
++    g_object_set_data_full (G_OBJECT (dialogo), "conferma", conferma, NULL);
++    g_object_set_data_full (G_OBJECT (dialogo), "dati", d, dati_dialogo_free);
++    g_object_set_data (G_OBJECT (primario), "dialogo", dialogo);
++    g_signal_connect (primario, "clicked", G_CALLBACK (su_conferma_dialogo), d);
++    gtk_box_append (GTK_BOX (fondo), spazio);
++    gtk_box_append (GTK_BOX (fondo), annulla);
++    gtk_box_append (GTK_BOX (fondo), primario);
++    g_object_set (fondo, "margin-top", 2, "margin-bottom", 14,
++                  "margin-start", 14, "margin-end", 14, NULL);
++    adw_toolbar_view_add_bottom_bar (ADW_TOOLBAR_VIEW (vista), fondo);
++}
++
++/* Il bottone primario di un dialogo: ritrora dialogo e callback dai dati
++ * del dialogo stesso, chiude solo se la conferma riesce. */
++static void
++su_conferma_dialogo (GtkButton *pulsante, gpointer dato)
++{
++    DatiDialogo *d = dato;
++    AdwDialog *dialogo = g_object_get_data (G_OBJECT (pulsante), "dialogo");
++    gboolean (*conferma) (DatiDialogo *) =
++        g_object_get_data (G_OBJECT (dialogo), "conferma");
++
++    if (conferma != NULL && conferma (d))
++    {
++        adw_dialog_close (dialogo);
++    }
++}
++
++/* Il guscio comune: AdwDialog con testata (titolo + Annulla/primario) e
++ * contenuto a margine. Il puntatore DatiDialogo resta del dialogo. */
++static AdwDialog *
++guscio_dialogo (const char *titolo, const char *etichetta_primaria,
++                gboolean (*conferma) (DatiDialogo *), DatiDialogo *d,
++                GtkWidget **contenuto_fuori)
++{
++    AdwDialog *dialogo = adw_dialog_new ();
++    GtkWidget *vista = adw_toolbar_view_new ();
++    GtkWidget *testa = adw_header_bar_new ();
++    GtkWidget *titolo_widget = adw_window_title_new (titolo, NULL);
++    GtkWidget *contenuto = gtk_box_new (GTK_ORIENTATION_VERTICAL, 12);
++
++    adw_dialog_set_title (dialogo, titolo);
++    adw_window_title_set_title (ADW_WINDOW_TITLE (titolo_widget), titolo);
++    adw_header_bar_set_title_widget (ADW_HEADER_BAR (testa), titolo_widget);
++    adw_toolbar_view_add_top_bar (ADW_TOOLBAR_VIEW (vista), testa);
++    g_object_set (contenuto, "margin-top", 18, "margin-bottom", 6,
++                  "margin-start", 18, "margin-end", 18, NULL);
++    adw_toolbar_view_set_content (ADW_TOOLBAR_VIEW (vista), contenuto);
++    adw_dialog_set_child (dialogo, vista);
++    adw_dialog_set_content_width (dialogo, 420);
++    fondo_con_risposta (dialogo, vista, etichetta_primaria, conferma, d);
++    *contenuto_fuori = contenuto;
++    return dialogo;
++}
++
++/* ---------------------------------------------------- Rinomina la voce */
++
++static gboolean
++conferma_rinomina (DatiDialogo *d)
++{
++    const char *testo = gtk_editable_get_text (GTK_EDITABLE (d->voce_nome));
++
++    if (testo == NULL || *testo == '\0' || strpbrk (testo, "\r\n") != NULL)
++    {
++        return FALSE;
++    }
++    if (d->plex)
++    {
++        SezioneIni *s = g_ptr_array_index (d->st->ini, d->indice);
++        char *prima = s->nome;
++
++        s->nome = g_strdup (testo);
++        if (!salva_ini (d->st))
++        {
++            /* niente scritto: il modello resta quello del file */
++            g_free (s->nome);
++            s->nome = prima;
++            return FALSE;
++        }
++        g_free (prima);
++        ricostruisci_plex (d->st);
++    }
++    else
++    {
++        RigaSegnalibro *r = g_ptr_array_index (d->st->segnalibri, d->indice);
++        char *prima = r->etichetta;
++
++        r->etichetta = g_strdup (testo);
++        if (!salva_segnalibri (d->st))
++        {
++            g_free (r->etichetta);
++            r->etichetta = prima;
++            return FALSE;
++        }
++        g_free (prima);
++        ricostruisci_lavoro (d->st);
++    }
++    GtkListBox *lista = d->plex ? GTK_LIST_BOX (d->st->lista_plex) :
++                       GTK_LIST_BOX (d->st->lista_lavoro);
++
++    gtk_list_box_select_row (lista, gtk_list_box_get_row_at_index (lista, d->indice));
++    aggiorna_bottoni (d->st);
++    aggiorna_sottotitolo (d->st);
++    return TRUE;
++}
++
++static void
++apri_dialogo_rinomina (StatoConfig *st, gboolean plex, int indice)
++{
++    const char *nome = plex ?
++        ((SezioneIni *) g_ptr_array_index (st->ini, indice))->nome :
++        ((RigaSegnalibro *) g_ptr_array_index (st->segnalibri, indice))->etichetta;
++    GtkWidget *contenuto = NULL;
++    DatiDialogo *d = g_new0 (DatiDialogo, 1);
++    AdwDialog *dialogo = guscio_dialogo (_("Rename entry"), _("Confirm"),
++                                          conferma_rinomina, d, &contenuto);
++    GtkWidget *riga = adw_entry_row_new ();
++
++    d->st = st;
++    d->plex = plex;
++    d->indice = indice;
++    d->voce_nome = riga;
++
++    adw_preferences_row_set_title (ADW_PREFERENCES_ROW (riga), _("Name"));
++    gtk_editable_set_text (GTK_EDITABLE (riga), nome != NULL ? nome : "");
++    gtk_box_append (GTK_BOX (contenuto), riga);
++    adw_dialog_present (dialogo, st->finestra);
++}
++
++/* -------------------------------------------------------- Cambia icona */
++
++#ifdef CODLAB_INC4B
++/* INC-4b, spento: «Cambia icona» (vedi la testata del file) */
++static void
++icona_cambiata (GtkEditable *voce, gpointer dato)
++{
++    DatiDialogo *d = dato;
++    const char *nome = gtk_editable_get_text (voce);
++    GtkIconTheme *tema = gtk_icon_theme_get_for_display (
++        gtk_widget_get_display (d->anteprima));
++
++    if (nome != NULL && *nome != '\0' && gtk_icon_theme_has_icon (tema, nome))
++    {
++        gtk_image_set_from_icon_name (GTK_IMAGE (d->anteprima), nome);
++    }
++    else
++    {
++        gtk_image_set_from_icon_name (GTK_IMAGE (d->anteprima),
++                                      "image-missing-symbolic");
++    }
++}
++
++static gboolean
++conferma_icona (DatiDialogo *d)
++{
++    const char *testo = gtk_editable_get_text (GTK_EDITABLE (d->voce_icona));
++
++    if (d->indice < 0 || (guint) d->indice >= d->st->ini->len)
++    {
++        return FALSE;
++    }
++    SezioneIni *s = g_ptr_array_index (d->st->ini, d->indice);
++
++    g_free (s->icona);
++    s->icona = g_strdup (testo != NULL ? testo : "");
++    salva_ini (d->st);
++    ricostruisci_plex (d->st);
++    gtk_list_box_select_row (GTK_LIST_BOX (d->st->lista_plex),
++                             gtk_list_box_get_row_at_index (
++                                 GTK_LIST_BOX (d->st->lista_plex), d->indice));
++    aggiorna_bottoni (d->st);
++    aggiorna_sottotitolo (d->st);
++    return TRUE;
++}
++
++static void
++apri_dialogo_icona (StatoConfig *st, int indice)
++{
++    SezioneIni *s = g_ptr_array_index (st->ini, indice);
++    GtkWidget *contenuto = NULL;
++    DatiDialogo *d = g_new0 (DatiDialogo, 1);
++    AdwDialog *dialogo = guscio_dialogo (_("Change icon"), _("Confirm"),
++                                          conferma_icona, d, &contenuto);
++    GtkWidget *riga = adw_entry_row_new ();
++    GtkWidget *anteprima = gtk_image_new_from_icon_name (
++        s->icona != NULL && *s->icona != '\0' ? s->icona : "image-missing-symbolic");
++
++    d->st = st;
++    d->plex = TRUE;
++    d->indice = indice;
++    d->voce_icona = riga;
++    d->anteprima = anteprima;
++
++    adw_preferences_row_set_title (ADW_PREFERENCES_ROW (riga), _("Icon"));
++    gtk_editable_set_text (GTK_EDITABLE (riga), s->icona != NULL ? s->icona : "");
++    gtk_image_set_pixel_size (GTK_IMAGE (anteprima), 48);
++    gtk_widget_set_valign (anteprima, GTK_ALIGN_START);
++    /* l'anteprima segue la scrittura: si vede SUBITO se il nome esiste */
++    g_signal_connect (riga, "changed", G_CALLBACK (icona_cambiata), d);
++    gtk_box_append (GTK_BOX (contenuto), riga);
++    gtk_box_append (GTK_BOX (contenuto), anteprima);
++    adw_dialog_present (dialogo, st->finestra);
++}
++#endif
++
++/* ------------------------------------------------- selettore cartelle */
++
++static void
++cartella_accettata (NautilusFileChooser *selettore,
++                    GList               *percorsi,
++                    GtkFileFilter       *filtro,
++                    gpointer             dato)
++{
++    DatiDialogo *d = dato;
++    GFile *cartella = percorsi != NULL ? g_object_ref (percorsi->data) : NULL;
++    g_autofree char *uri = NULL;
++    g_autofree char *nome = NULL;
++
++    /* TUTTO il lavoro PRIMA di chiudere il selettore, per due motivi
++     * misurati (02.11): la sidebar INTERNA del selettore monitora
++     * barra.ini come quella principale, e chiudere prima lasciava la
++     * voce scritta con la barra VERA mai aggiornata (il monitor
++     * condiviso partiva con la finestra); e i dati d vivono sul
++     * selettore: dopo gtk_window_destroy resterebbero appesi. */
++    if (cartella != NULL)
++    {
++        uri = g_file_get_uri (cartella);
++        if (d->voce_cartella != NULL)
++        {
++            /* «Sfoglia…» della finestra Nuova voce: riempie il campo */
++            gtk_editable_set_text (GTK_EDITABLE (d->voce_cartella), uri);
++        }
++        else
++        {
++            /* «Aggiungi cartella…» diretto: aggiunge la voce adesso */
++            nome = etichetta_uri (uri);
++            if (uri_gia_presente (d->st, d->plex, uri))
++            {
++                avvisa (d->st, _("An entry for this folder already exists."));
++            }
++            else if (d->plex && d->st->ini->len >= SEZIONI_BARRA)
++            {
++                avvisa (d->st, _("Too many entries in the Plex group (64 at most)."));
++            }
++            else
++            {
++                aggiungi_voce (d->st, d->plex, cartella, nome, "");
++                aggiorna_sottotitolo (d->st);
++            }
++        }
++        g_object_unref (cartella);
++    }
++    gtk_window_destroy (GTK_WINDOW (selettore));
++}
++
++/* Il selettore di cartelle è quello DI NAUTILUS (AdwWindow, nessuna API
++ * deprecata): «accepted» consegna la cartella scelta. */
++static void
++apri_selettore_cartella (StatoConfig *st, gboolean plex, GtkWidget *destinazione)
++{
++    NautilusFileChooser *selettore =
++        nautilus_file_chooser_new (NAUTILUS_MODE_OPEN_FOLDER);
++    DatiDialogo *d = g_new0 (DatiDialogo, 1);
++
++    d->st = st;
++    d->plex = plex;
++    d->voce_cartella = destinazione;
++
++    gtk_window_set_title (GTK_WINDOW (selettore), _("Choose a folder"));
++    nautilus_file_chooser_set_accept_label (selettore, _("Select"));
++    /* si apre su Home: e' da lì che si naviga (niente campo percorso
++     * digitabile nel selettore nuovo di Nautilus 51). R1 (revisione del
++     * 02.11): il setter prende un riferimento suo (g_object_ref)
++     * e NON consuma quello del chiamante — il GFile nudo passato prima
++     * perdeva un riferimento a ogni «Nuova voce → Sfoglia»: g_autoptr
++     * rilascia il nostro alla fine della funzione */
++    g_autoptr (GFile) partenza = g_file_new_for_path (g_get_home_dir ());
++
++    nautilus_file_chooser_set_starting_location (selettore, partenza);
++    gtk_window_set_modal (GTK_WINDOW (selettore), TRUE);
++    gtk_window_set_transient_for (GTK_WINDOW (selettore),
++                                  GTK_WINDOW (st->finestra));
++    g_object_set_data_full (G_OBJECT (selettore), "dati", d, dati_dialogo_free);
++    g_signal_connect (selettore, "accepted",
++                      G_CALLBACK (cartella_accettata), d);
++    /* ALLA distruzione del selettore (accetto o annullo, non importa):
++     * la sua sidebar muore col relativo watch inotify CONDIVISO con
++     * quello della barra principale, che resta sorda — si arma subito il
++     * monitor di riserva (watch nuovo, mai piu' cancellato) */
++    g_signal_connect (selettore, "destroy",
++                      G_CALLBACK (arma_monitor_barra), NULL);
++    gtk_window_present (GTK_WINDOW (selettore));
++}
++
++/* ------------------------------------------------- finestra Nuova voce */
++
++static gboolean
++conferma_nuova (DatiDialogo *d)
++{
++    const char *nome = gtk_editable_get_text (GTK_EDITABLE (d->voce_nome));
++    const char *cartella = gtk_editable_get_text (GTK_EDITABLE (d->voce_cartella));
++    const char *icona = d->voce_icona != NULL ?
++                        gtk_editable_get_text (GTK_EDITABLE (d->voce_icona)) : "";
++    g_autoptr (GFile) file = NULL;
++
++    if (nome == NULL || *nome == '\0' || strpbrk (nome, "\r\n") != NULL ||
++        cartella == NULL || *cartella == '\0')
++    {
++        return FALSE;
++    }
++    /* accetta sia un percorso sia un file:/// URI, come li incolla l'utente */
++    file = strstr (cartella, "://") != NULL ?
++           g_file_new_for_uri (cartella) : g_file_new_for_path (cartella);
++    if (g_file_query_file_type (file, G_FILE_QUERY_INFO_NONE, NULL) !=
++        G_FILE_TYPE_DIRECTORY)
++    {
++        avvisa (d->st, _("The folder does not exist."));
++        return FALSE;
++    }
++    g_autofree char *uri = g_file_get_uri (file);
++
++    if (uri_gia_presente (d->st, d->plex, uri))
++    {
++        avvisa (d->st, _("An entry for this folder already exists."));
++        return FALSE;
++    }
++    if (d->plex && d->st->ini->len >= SEZIONI_BARRA)
++    {
++        avvisa (d->st, _("Too many entries in the Plex group (64 at most)."));
++        return FALSE;
++    }
++    if (!aggiungi_voce (d->st, d->plex, file, nome, icona))
++    {
++        return FALSE;
++    }
++    aggiorna_sottotitolo (d->st);
++    return TRUE;
++}
++
++static void
++su_sfoglia (GtkButton *pulsante, gpointer dato)
++{
++    DatiDialogo *d = dato;
++
++    apri_selettore_cartella (d->st, d->plex, d->voce_cartella);
++}
++
++static void
++apri_dialogo_nuova (StatoConfig *st, gboolean plex)
++{
++    GtkWidget *contenuto = NULL;
++    DatiDialogo *d = g_new0 (DatiDialogo, 1);
++    AdwDialog *dialogo = guscio_dialogo (_("New entry"), _("Create"),
++                                          conferma_nuova, d, &contenuto);
++    GtkWidget *riga_nome = adw_entry_row_new ();
++    GtkWidget *riga_cartella = adw_entry_row_new ();
++    GtkWidget *sfoglia = gtk_button_new_with_label (_("Browse…"));
++    GtkWidget *riga_icona = plex ? adw_entry_row_new () : NULL;
++
++    d->st = st;
++    d->plex = plex;
++    d->indice = -1;
++    d->voce_nome = riga_nome;
++    d->voce_cartella = riga_cartella;
++    d->voce_icona = riga_icona;
++
++    adw_preferences_row_set_title (ADW_PREFERENCES_ROW (riga_nome), _("Name"));
++    adw_preferences_row_set_title (ADW_PREFERENCES_ROW (riga_cartella), _("Folder"));
++    gtk_box_append (GTK_BOX (contenuto), riga_nome);
++    gtk_widget_add_css_class (sfoglia, "flat");
++    adw_entry_row_add_suffix (ADW_ENTRY_ROW (riga_cartella), sfoglia);
++    g_object_set_data_full (G_OBJECT (sfoglia), "dati", d, NULL);
++    g_signal_connect (sfoglia, "clicked", G_CALLBACK (su_sfoglia), d);
++    gtk_box_append (GTK_BOX (contenuto), riga_cartella);
++    if (riga_icona != NULL)
++    {
++        adw_preferences_row_set_title (ADW_PREFERENCES_ROW (riga_icona), _("Icon"));
++        gtk_editable_set_text (GTK_EDITABLE (riga_icona), "folder-videos");
++        gtk_box_append (GTK_BOX (contenuto), riga_icona);
++    }
++    adw_dialog_present (dialogo, st->finestra);
++}
++
++/* ------------------------------------------------ costruzione delle liste */
++
++static void
++riga_attivata (GtkListBox *box, GtkListBoxRow *riga, gpointer dato)
++{
++    StatoConfig *st = dato;
++    gboolean plex = box == GTK_LIST_BOX (st->lista_plex);
++
++    if (riga == NULL)
++    {
++        return;
++    }
++    su_selezione (box, riga, st);
++    apri_dialogo_rinomina (st, plex,
++                           GPOINTER_TO_INT (g_object_get_data (G_OBJECT (riga), "indice")));
++}
++
++static void
++vuota_lista (GtkWidget *lista)
++{
++    GtkListBoxRow *figlio = gtk_list_box_get_row_at_index (GTK_LIST_BOX (lista), 0);
++
++    while (figlio != NULL)
++    {
++        gtk_list_box_remove (GTK_LIST_BOX (lista), GTK_WIDGET (figlio));
++        figlio = gtk_list_box_get_row_at_index (GTK_LIST_BOX (lista), 0);
++    }
++}
++
++static void
++ricostruisci_lavoro (StatoConfig *st)
++{
++    vuota_lista (st->lista_lavoro);
++    st->sel_lavoro = NULL;
++    for (guint i = 0; i < st->segnalibri->len; i++)
++    {
++        RigaSegnalibro *r = g_ptr_array_index (st->segnalibri, i);
++        GtkWidget *riga = adw_action_row_new ();
++        GtkWidget *icona = gtk_image_new_from_icon_name ("folder-symbolic");
++        g_autofree char *sottotitolo = r->grezza != NULL ?
++                                       g_strdup (r->grezza) : etichetta_uri (r->uri);
++        const char *titolo = r->grezza != NULL ? r->grezza : r->etichetta;
++
++        if (r->grezza != NULL)
++        {
++            adw_preferences_row_set_title (ADW_PREFERENCES_ROW (riga), titolo);
++        }
++        else if (*r->etichetta == '\0')
++        {
++            adw_preferences_row_set_title (ADW_PREFERENCES_ROW (riga), sottotitolo);
++        }
++        else
++        {
++            adw_preferences_row_set_title (ADW_PREFERENCES_ROW (riga), titolo);
++        }
++        adw_action_row_set_subtitle (ADW_ACTION_ROW (riga), sottotitolo);
++        adw_action_row_add_prefix (ADW_ACTION_ROW (riga), icona);
++        g_object_set_data (G_OBJECT (riga), "indice", GINT_TO_POINTER (i));
++        gtk_list_box_append (GTK_LIST_BOX (st->lista_lavoro), riga);
++    }
++    if (st->segnalibri->len == 0)
++    {
++        GtkWidget *vuota = gtk_label_new (_("No entries"));
++
++        gtk_widget_add_css_class (vuota, "dim-label");
++        gtk_list_box_append (GTK_LIST_BOX (st->lista_lavoro), vuota);
++    }
++}
++
++static void
++ricostruisci_plex (StatoConfig *st)
++{
++    vuota_lista (st->lista_plex);
++    st->sel_plex = NULL;
++    /* le sezioni che la barra mostra; le altre restano nel file, intatte */
++    for (guint i = 0; i < st->ini->len && i < SEZIONI_BARRA; i++)
++    {
++        SezioneIni *s = g_ptr_array_index (st->ini, i);
++
++        if (!s->valida)
++        {
++            continue;
++        }
++        GtkWidget *riga = adw_action_row_new ();
++        const char *nome_icona = s->icona != NULL && *s->icona != '\0' ?
++                                 s->icona : "folder-videos";
++        GtkWidget *icona = gtk_image_new_from_icon_name (nome_icona);
++        g_autofree char *sottotitolo = etichetta_uri (s->uri);
++
++        adw_preferences_row_set_title (ADW_PREFERENCES_ROW (riga), s->nome);
++        adw_action_row_set_subtitle (ADW_ACTION_ROW (riga), sottotitolo);
++        adw_action_row_add_prefix (ADW_ACTION_ROW (riga), icona);
++        g_object_set_data (G_OBJECT (riga), "indice", GINT_TO_POINTER (i));
++        gtk_list_box_append (GTK_LIST_BOX (st->lista_plex), riga);
++    }
++    if (st->ini->len == 0)
++    {
++        GtkWidget *vuota = gtk_label_new (_("No entries"));
++
++        gtk_widget_add_css_class (vuota, "dim-label");
++        gtk_list_box_append (GTK_LIST_BOX (st->lista_plex), vuota);
++    }
++}
++
++/* -------------------------------------------------- azioni dei bottoni */
++
++static void
++su_aggiungi_cartella (GtkButton *pulsante, gpointer dato)
++{
++    StatoConfig *st = dato;
++    gboolean plex = GPOINTER_TO_INT (g_object_get_data (G_OBJECT (pulsante), "plex"));
++
++    apri_selettore_cartella (st, plex, NULL);
++}
++
++static void
++su_nuova_voce (GtkButton *pulsante, gpointer dato)
++{
++    StatoConfig *st = dato;
++    gboolean plex = GPOINTER_TO_INT (g_object_get_data (G_OBJECT (pulsante), "plex"));
++
++    apri_dialogo_nuova (st, plex);
++}
++
++static void
++su_rinomina (GtkButton *pulsante, gpointer dato)
++{
++    StatoConfig *st = dato;
++    GtkListBoxRow *riga = st->sel_plex != NULL ? st->sel_plex : st->sel_lavoro;
++
++    if (riga == NULL)
++    {
++        return;
++    }
++    apri_dialogo_rinomina (st, st->sel_plex != NULL,
++                           GPOINTER_TO_INT (g_object_get_data (G_OBJECT (riga), "indice")));
++}
++
++#ifdef CODLAB_INC4B
++/* INC-4b, spenti: i gestori dei tre bottoni (vedi la testata del file) */
++static void
++su_icona (GtkButton *pulsante, gpointer dato)
++{
++    StatoConfig *st = dato;
++
++    if (st->sel_plex == NULL)
++    {
++        return;
++    }
++    apri_dialogo_icona (st,
++                        GPOINTER_TO_INT (g_object_get_data (G_OBJECT (st->sel_plex),
++                                                            "indice")));
++}
++
++static void
++su_su (GtkButton *pulsante, gpointer dato)
++{
++    sposta (dato, -1);
++}
++
++static void
++su_giu (GtkButton *pulsante, gpointer dato)
++{
++    sposta (dato, +1);
++}
++#endif
++
++/* -------------------------------------------------------- la finestra */
++
++static GtkWidget *
++gruppo_finestra (StatoConfig *st, const char *titolo, gboolean plex)
++{
++    GtkWidget *casella = gtk_box_new (GTK_ORIENTATION_VERTICAL, 6);
++    GtkWidget *testata = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 6);
++    GtkWidget *etichetta = gtk_label_new (titolo);
++    GtkWidget *aggiungi = gtk_button_new_with_label (_("Add folder…"));
++    GtkWidget *nuova = gtk_button_new_with_label (_("New entry…"));
++    GtkWidget *lista = gtk_list_box_new ();
++
++    gtk_widget_add_css_class (etichetta, "heading");
++    gtk_widget_set_halign (etichetta, GTK_ALIGN_START);
++    gtk_widget_set_hexpand (etichetta, TRUE);
++    gtk_widget_set_valign (etichetta, GTK_ALIGN_CENTER);
++    gtk_widget_add_css_class (lista, "boxed-list");
++    gtk_list_box_set_selection_mode (GTK_LIST_BOX (lista), GTK_SELECTION_SINGLE);
++    /* il clic SINGOLO seleziona (per Rinomina, che agisce sulla selezione;
++     * con INC-4b anche Sposta e Icona); il DOPPIO clic apre il rinomina:
++     * come le liste di configurazione di GNOME, non come la barra dei posti */
++    gtk_list_box_set_activate_on_single_click (GTK_LIST_BOX (lista), FALSE);
++    g_object_set_data (G_OBJECT (aggiungi), "plex", GINT_TO_POINTER (plex ? 1 : 0));
++    g_object_set_data (G_OBJECT (nuova), "plex", GINT_TO_POINTER (plex ? 1 : 0));
++    g_signal_connect (aggiungi, "clicked", G_CALLBACK (su_aggiungi_cartella), st);
++    g_signal_connect (nuova, "clicked", G_CALLBACK (su_nuova_voce), st);
++    g_signal_connect (lista, "row-selected", G_CALLBACK (su_selezione), st);
++    g_signal_connect (lista, "row-activated", G_CALLBACK (riga_attivata), st);
++
++    gtk_box_append (GTK_BOX (testata), etichetta);
++    gtk_box_append (GTK_BOX (testata), aggiungi);
++    gtk_box_append (GTK_BOX (testata), nuova);
++    gtk_box_append (GTK_BOX (casella), testata);
++    gtk_box_append (GTK_BOX (casella), lista);
++
++    if (plex)
++    {
++        st->lista_plex = lista;
++    }
++    else
++    {
++        st->lista_lavoro = lista;
++    }
++    return casella;
++}
++
++static void
++stato_free (gpointer dato)
++{
++    StatoConfig *st = dato;
++
++    g_ptr_array_unref (st->ini);
++    g_ptr_array_unref (st->segnalibri);
++    g_key_file_unref (st->kf_lettura);
++    g_clear_pointer (&st->ini_letto, g_bytes_unref);
++    g_clear_pointer (&st->seg_letto, g_bytes_unref);
++    g_clear_object (&st->btn_rinomina);
++#ifdef CODLAB_INC4B
++    g_clear_object (&st->btn_icona);
++    g_clear_object (&st->btn_su);
++    g_clear_object (&st->btn_giu);
++#endif
++    g_free (st);
++}
++
++/* Escape chiude la finestra (HIG): serve anche alle prove dell'isola, dove
++ * il driver manda l'Escape di chiusura quando la modale e' ancora aperta */
++static gboolean
++su_tasto_config (GtkEventControllerKey *controller,
++                 guint                  keyval,
++                 guint                  keycode,
++                 GdkModifierType        state,
++                 gpointer               dato)
++{
++    if (keyval == GDK_KEY_Escape)
++    {
++        gtk_window_close (GTK_WINDOW (dato));
++        return TRUE;
++    }
++    return FALSE;
++}
++
++GtkWidget *
++nautilus_sidebar_config_new (GtkWidget *genitore)
++{
++    StatoConfig *st = g_new0 (StatoConfig, 1);
++    GtkWidget *finestra = adw_window_new ();
++    GtkWidget *vista = adw_toolbar_view_new ();
++    GtkWidget *testa = adw_header_bar_new ();
++    GtkWidget *titolo = adw_window_title_new (_("Configure sidebar groups"),
++                                              _(SOTTOTITOLO_CONFIGURA));
++    GtkWidget *scorsoio = gtk_scrolled_window_new ();
++    GtkWidget *morsetto = adw_clamp_new ();
++    GtkWidget *colonna = gtk_box_new (GTK_ORIENTATION_VERTICAL, 24);
++    GtkWidget *azione = gtk_action_bar_new ();
++    GtkWidget *gruppo_dischi;
++    GtkWidget *sezione_lavoro;
++    GtkWidget *sezione_plex;
++    GtkRoot *radice;
++
++    st->finestra = finestra;
++    st->titolo = titolo;
++    carica_ini (st);
++    carica_segnalibri (st);
++
++    gtk_window_set_title (GTK_WINDOW (finestra), _("Configure sidebar groups"));
++    gtk_window_set_default_size (GTK_WINDOW (finestra), 640, 560);
++    gtk_window_set_modal (GTK_WINDOW (finestra), TRUE);
++    radice = gtk_widget_get_root (genitore);
++    if (radice != NULL && GTK_IS_WINDOW (radice))
++    {
++        gtk_window_set_transient_for (GTK_WINDOW (finestra), GTK_WINDOW (radice));
++    }
++    adw_header_bar_set_title_widget (ADW_HEADER_BAR (testa), titolo);
++    adw_toolbar_view_add_top_bar (ADW_TOOLBAR_VIEW (vista), testa);
++
++    gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (scorsoio),
++                                    GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
++    gtk_widget_set_vexpand (scorsoio, TRUE);
++    adw_clamp_set_maximum_size (ADW_CLAMP (morsetto), 520);
++    gtk_scrolled_window_set_child (GTK_SCROLLED_WINDOW (scorsoio), morsetto);
++    g_object_set (colonna, "margin-top", 16, "margin-bottom", 16,
++                  "margin-start", 6, "margin-end", 6, NULL);
++    adw_clamp_set_child (ADW_CLAMP (morsetto), colonna);
++
++    /* Dischi: solo informativo, segue i volumi del sistema */
++    gruppo_dischi = gtk_box_new (GTK_ORIENTATION_VERTICAL, 6);
++    {
++        GtkWidget *etichetta = gtk_label_new (_("Disks"));
++        GtkWidget *lista = gtk_list_box_new ();
++        GtkWidget *riga = adw_action_row_new ();
++        GtkWidget *icona = gtk_image_new_from_icon_name ("drive-harddisk-symbolic");
++
++        gtk_widget_add_css_class (etichetta, "heading");
++        gtk_widget_set_halign (etichetta, GTK_ALIGN_START);
++        adw_preferences_row_set_title (ADW_PREFERENCES_ROW (riga),
++                                       _("Follows the system volumes"));
++        adw_action_row_add_prefix (ADW_ACTION_ROW (riga), icona);
++        gtk_widget_add_css_class (lista, "boxed-list");
++        gtk_list_box_set_selection_mode (GTK_LIST_BOX (lista), GTK_SELECTION_NONE);
++        gtk_list_box_append (GTK_LIST_BOX (lista), riga);
++        gtk_box_append (GTK_BOX (gruppo_dischi), etichetta);
++        gtk_box_append (GTK_BOX (gruppo_dischi), lista);
++    }
++
++    sezione_lavoro = gruppo_finestra (st, _("Work"), FALSE);
++    sezione_plex = gruppo_finestra (st, "Plex", TRUE);
++
++    gtk_box_append (GTK_BOX (colonna), gruppo_dischi);
++    gtk_box_append (GTK_BOX (colonna), sezione_lavoro);
++    gtk_box_append (GTK_BOX (colonna), sezione_plex);
++
++    adw_toolbar_view_set_content (ADW_TOOLBAR_VIEW (vista), scorsoio);
++
++    /* barra d'azione in basso: agisce sulla voce SELEZIONATA (solo
++     * «Rinomina…»: «Cambia icona» e «Sposta» sono di INC-4b, spenti) */
++    st->btn_rinomina = gtk_button_new_with_label (_("Rename…"));
++    g_signal_connect (st->btn_rinomina, "clicked", G_CALLBACK (su_rinomina), st);
++    gtk_action_bar_pack_start (GTK_ACTION_BAR (azione), st->btn_rinomina);
++#ifdef CODLAB_INC4B
++    st->btn_icona = gtk_button_new_with_label (_("Change icon"));
++    st->btn_su = gtk_button_new_with_label (_("Move up"));
++    st->btn_giu = gtk_button_new_with_label (_("Move down"));
++    g_signal_connect (st->btn_icona, "clicked", G_CALLBACK (su_icona), st);
++    g_signal_connect (st->btn_su, "clicked", G_CALLBACK (su_su), st);
++    g_signal_connect (st->btn_giu, "clicked", G_CALLBACK (su_giu), st);
++    gtk_action_bar_pack_start (GTK_ACTION_BAR (azione), st->btn_icona);
++    gtk_action_bar_pack_end (GTK_ACTION_BAR (azione), st->btn_giu);
++    gtk_action_bar_pack_end (GTK_ACTION_BAR (azione), st->btn_su);
++#endif
++    /* le liste si deselezionano anche mentre la finestra si smonta (e
++     * aggiorna_bottoni tocca questi bottoni): restano vivi quanto lo stato */
++    g_object_ref (st->btn_rinomina);
++#ifdef CODLAB_INC4B
++    g_object_ref (st->btn_icona);
++    g_object_ref (st->btn_su);
++    g_object_ref (st->btn_giu);
++#endif
++    adw_toolbar_view_add_bottom_bar (ADW_TOOLBAR_VIEW (vista), azione);
++
++    adw_window_set_content (ADW_WINDOW (finestra), vista);
++
++    ricostruisci_lavoro (st);
++    ricostruisci_plex (st);
++    aggiorna_bottoni (st);
++    aggiorna_sottotitolo (st);
++
++    {
++        GtkEventController *tasti = gtk_event_controller_key_new ();
++
++        g_signal_connect (tasti, "key-pressed", G_CALLBACK (su_tasto_config),
++                          finestra);
++        gtk_widget_add_controller (GTK_WIDGET (finestra), tasti);
++    }
++
++    /* lo stato vive quanto la finestra: le callback non restano appese */
++    g_object_set_data_full (G_OBJECT (finestra), "stato-codlab", st, stato_free);
++    return finestra;
++}
+diff --git a/src/nautilus-sidebar-config.h b/src/nautilus-sidebar-config.h
+new file mode 100644
+index 0000000..a9172cf
+--- /dev/null
++++ b/src/nautilus-sidebar-config.h
+@@ -0,0 +1,22 @@
++/* nautilus-sidebar-config.h — CodLab (INC-4): finestra «Configura»
++ * per i gruppi della barra laterale (Lavoro/Plex).
++ *
++ * Il modello dati sono i due file che la patch «blocchi-barra» legge
++ * già oggi: ~/.config/nautilus-codlab/barra.ini (gruppo Plex, formato
++ * invariato) e ~/.config/gtk-3.0/bookmarks (gruppo Lavoro). Le scritture
++ * sono atomiche (g_file_set_contents: file temporaneo + rename) e
++ * lasciano accanto a ogni file la copia di prima (<file>.bak).
++ */
++#pragma once
++
++#include <gtk/gtk.h>
++
++G_BEGIN_DECLS
++
++/* Crea la finestra «Configura i gruppi della barra», transient per il
++ * GtkRoot del widget genitore (la barra laterale). Restituisce un riferimento
++ * nuovo: il chiamante lo tiene (puntatore debole consigliato) e la finestra
++ * si distrugge da sola alla chiusura. */
++GtkWidget *nautilus_sidebar_config_new (GtkWidget *genitore);
++
++G_END_DECLS

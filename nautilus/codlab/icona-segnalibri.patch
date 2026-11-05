@@ -1,0 +1,33 @@
+--- a/src/nautilus-bookmark.c	2026-09-22 07:07:54.062725093 +0200
++++ b/src/nautilus-bookmark.c	2026-09-22 07:07:54.077527620 +0200
+@@ -191,6 +191,30 @@
+         return g_themed_icon_new (symbolic ? "dialog-warning-symbolic" : "dialog-warning");
+     }
+ 
++    /* CodLab: un'icona scelta a mano sulla cartella
++     * (gio set <cartella> metadata::custom-icon-name <icona>) vale anche
++     * nella barra laterale, e vince sulle icone delle cartelle XDG. Nautilus
++     * la onora gia' nella vista dei file; qui la si legge con GIO perche' il
++     * NautilusFile del segnalibro non e' monitorato e i suoi metadati non
++     * sono caricati. Un nome non simbolico viene reso a colori. */
++    {
++        g_autoptr (GFileInfo) info = g_file_query_info (bookmark->location,
++                                                        "metadata::custom-icon-name",
++                                                        G_FILE_QUERY_INFO_NONE,
++                                                        NULL, NULL);
++        const char *custom = NULL;
++
++        if (info != NULL)
++        {
++            custom = g_file_info_get_attribute_string (info, "metadata::custom-icon-name");
++        }
++
++        if (custom != NULL && *custom != '\0')
++        {
++            return g_themed_icon_new (custom);
++        }
++    }
++
+     GUserDirectory xdg_type;
+ 
+     if (nautilus_bookmark_get_xdg_type (bookmark, &xdg_type))

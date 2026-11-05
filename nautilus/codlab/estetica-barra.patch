@@ -1,0 +1,370 @@
+diff --git a/po/it.po b/po/it.po
+index 09142ee..be263f6 100644
+--- a/po/it.po
++++ b/po/it.po
+@@ -6602,3 +6602,17 @@ msgstr "_Lavoro"
+ #: src/nautilus-sidebar.c
+ msgid "Show or hide work bookmarks (Alt+L)"
+ msgstr "Mostra o nascondi i segnalibri di lavoro (Alt+L)"
++
++#: src/nautilus-sidebar-row.c
++msgid "Space unavailable"
++msgstr "Spazio non disponibile"
++
++#: src/nautilus-sidebar-row.c
++#, c-format
++msgid "%s free"
++msgstr "%s liberi"
++
++#: src/nautilus-sidebar-row.c
++#, c-format
++msgid "%s; %.0f%% used. Warning below 200 GB, critical below 100 GB free."
++msgstr "%s; %.0f%% usato. Avviso sotto 200 GB, critico sotto 100 GB liberi."
+diff --git a/src/nautilus-sidebar-capacity.h b/src/nautilus-sidebar-capacity.h
+new file mode 100644
+index 0000000..fd65dc8
+--- /dev/null
++++ b/src/nautilus-sidebar-capacity.h
+@@ -0,0 +1,24 @@
++/* SPDX-License-Identifier: GPL-3.0-or-later */
++#pragma once
++#include <glib.h>
++
++typedef struct {
++    guint64 free_bytes;
++    double used_fraction;
++    guint level;
++} NautilusSidebarCapacity;
++
++static inline gboolean
++nautilus_sidebar_capacity_calculate (guint64 total, guint64 available,
++                                     NautilusSidebarCapacity *result)
++{
++    if (total == 0)
++    {
++        return FALSE;
++    }
++    result->free_bytes = MIN (available, total);
++    result->used_fraction = (double) (total - result->free_bytes) / (double) total;
++    result->level = result->free_bytes < G_GUINT64_CONSTANT (100000000000) ? 2 :
++                    result->free_bytes < G_GUINT64_CONSTANT (200000000000) ? 1 : 0;
++    return TRUE;
++}
+diff --git a/src/nautilus-sidebar-row.c b/src/nautilus-sidebar-row.c
+index 2b4f47c..dc5f949 100644
+--- a/src/nautilus-sidebar-row.c
++++ b/src/nautilus-sidebar-row.c
+@@ -10,6 +10,7 @@
+ #include <gtk/gtk.h>
+ #include "nautilus-enum-types.h"
+ #include "nautilus-file.h"
++#include "nautilus-sidebar-capacity.h"
+ 
+ /* For section and place type enums */
+ #include "nautilus-sidebar.h"
+@@ -43,6 +44,11 @@ struct _NautilusSidebarRow
+     NautilusSidebar *sidebar;
+     GtkWidget *revealer;
+     GtkWidget *busy_spinner;
++    GtkWidget *capacity_box;
++    GtkWidget *capacity_label;
++    GtkWidget *capacity_bar;
++    GCancellable *capacity_cancel;
++    guint capacity_timeout;
+ };
+ 
+ G_DEFINE_FINAL_TYPE (NautilusSidebarRow, nautilus_sidebar_row, GTK_TYPE_LIST_BOX_ROW)
+@@ -535,11 +541,190 @@ nautilus_sidebar_row_set_end_icon (NautilusSidebarRow *self,
+     }
+ }
+ 
++
++typedef struct {
++    GWeakRef row;
++    GCancellable *cancellable;
++} CapacityRequest;
++
++/* Query only mapped native mounts. No synchronous stat, no remote probing,
++ * no guessed zero on failure, and no callback that keeps a dead row alive. */
++static void
++capacity_ready (GObject      *source,
++                GAsyncResult *result,
++                gpointer      user_data)
++{
++    CapacityRequest *request = user_data;
++    g_autoptr (NautilusSidebarRow) self = g_weak_ref_get (&request->row);
++    g_autoptr (GCancellable) cancellable = g_steal_pointer (&request->cancellable);
++    g_autoptr (GError) error = NULL;
++    g_autoptr (GFileInfo) info = g_file_query_filesystem_info_finish (G_FILE (source), result, &error);
++    g_autofree char *free_text = NULL;
++    g_autofree char *text = NULL;
++    g_autofree char *description = NULL;
++    NautilusSidebarCapacity capacity;
++
++    g_weak_ref_clear (&request->row);
++    g_free (request);
++    if (self == NULL || self->capacity_cancel != cancellable ||
++        g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED))
++    {
++        return;
++    }
++    if (!gtk_widget_get_mapped (GTK_WIDGET (self)))
++    {
++        return;
++    }
++    g_clear_object (&self->capacity_cancel);
++    gtk_widget_set_visible (self->capacity_box, TRUE);
++    if (info == NULL ||
++        !g_file_info_has_attribute (info, G_FILE_ATTRIBUTE_FILESYSTEM_SIZE) ||
++        !g_file_info_has_attribute (info, G_FILE_ATTRIBUTE_FILESYSTEM_FREE) ||
++        !nautilus_sidebar_capacity_calculate (
++            g_file_info_get_attribute_uint64 (info, G_FILE_ATTRIBUTE_FILESYSTEM_SIZE),
++            g_file_info_get_attribute_uint64 (info, G_FILE_ATTRIBUTE_FILESYSTEM_FREE), &capacity))
++    {
++        gtk_label_set_text (GTK_LABEL (self->capacity_label), _("Space unavailable"));
++        gtk_widget_set_visible (self->capacity_bar, FALSE);
++        return;
++    }
++
++    free_text = g_format_size_full (capacity.free_bytes, G_FORMAT_SIZE_IEC_UNITS);
++    /* Translators: available disk space, e.g. "2.3 TB free". */
++    text = g_strdup_printf (_("%s free"), free_text);
++    gtk_label_set_text (GTK_LABEL (self->capacity_label), text);
++    gtk_progress_bar_set_fraction (GTK_PROGRESS_BAR (self->capacity_bar), capacity.used_fraction);
++    gtk_widget_set_visible (self->capacity_bar, TRUE);
++    gtk_widget_remove_css_class (self->capacity_bar, "space-ok");
++    gtk_widget_remove_css_class (self->capacity_bar, "space-low");
++    gtk_widget_remove_css_class (self->capacity_bar, "space-critical");
++    gtk_widget_add_css_class (self->capacity_bar, capacity.level == 2 ? "space-critical" :
++                                               capacity.level == 1 ? "space-low" : "space-ok");
++    description = g_strdup_printf (_("%s; %.0f%% used. Warning below 200 GB, critical below 100 GB free."),
++                                    text, capacity.used_fraction * 100.0);
++    gtk_widget_set_tooltip_text (self->capacity_box, description);
++    gtk_accessible_update_property (GTK_ACCESSIBLE (self->capacity_bar),
++                                     GTK_ACCESSIBLE_PROPERTY_LABEL, self->label,
++                                     GTK_ACCESSIBLE_PROPERTY_DESCRIPTION, description, -1);
++}
++
++static gboolean
++capacity_refresh (gpointer user_data)
++{
++    NautilusSidebarRow *self = user_data;
++    g_autoptr (GFile) location = NULL;
++    CapacityRequest *request;
++
++    if (self->capacity_cancel != NULL)
++    {
++        return G_SOURCE_CONTINUE;
++    }
++    location = g_mount_get_root (self->mount);
++    request = g_new0 (CapacityRequest, 1);
++    g_weak_ref_init (&request->row, self);
++    self->capacity_cancel = g_cancellable_new ();
++    request->cancellable = g_object_ref (self->capacity_cancel);
++    g_file_query_filesystem_info_async (location,
++                                        G_FILE_ATTRIBUTE_FILESYSTEM_SIZE ","
++                                        G_FILE_ATTRIBUTE_FILESYSTEM_FREE,
++                                        G_PRIORITY_DEFAULT, self->capacity_cancel,
++                                        capacity_ready, request);
++    return G_SOURCE_CONTINUE;
++}
++
++static void
++nautilus_sidebar_row_map (GtkWidget *widget)
++{
++    NautilusSidebarRow *self = NAUTILUS_SIDEBAR_ROW (widget);
++
++    GTK_WIDGET_CLASS (nautilus_sidebar_row_parent_class)->map (widget);
++    if (self->mount != NULL && self->section_type == NAUTILUS_SIDEBAR_SECTION_MOUNTS)
++    {
++        g_autoptr (GFile) location = g_mount_get_root (self->mount);
++
++        if (g_file_is_native (location))
++        {
++            capacity_refresh (self);
++            self->capacity_timeout = g_timeout_add_seconds (60, capacity_refresh, self);
++        }
++    }
++}
++
++static void
++capacity_stop (NautilusSidebarRow *self)
++{
++    g_clear_handle_id (&self->capacity_timeout, g_source_remove);
++    if (self->capacity_cancel != NULL)
++    {
++        g_cancellable_cancel (self->capacity_cancel);
++        g_clear_object (&self->capacity_cancel);
++    }
++}
++
++static void
++nautilus_sidebar_row_unmap (GtkWidget *widget)
++{
++    capacity_stop (NAUTILUS_SIDEBAR_ROW (widget));
++    GTK_WIDGET_CLASS (nautilus_sidebar_row_parent_class)->unmap (widget);
++}
++
++void
++nautilus_sidebar_row_update_mount (NautilusSidebarRow *self)
++{
++    if (self->mount != NULL && self->section_type == NAUTILUS_SIDEBAR_SECTION_MOUNTS)
++    {
++        g_autoptr (GFile) location = g_mount_get_root (self->mount);
++        g_autoptr (GRegex) suffix = NULL;
++        g_autofree char *name = NULL;
++        const char *icon_name;
++        GtkIconTheme *theme;
++
++        if (!g_file_is_native (location))
++        {
++            return;
++        }
++        /* Existing GVfs labels include a periodically generated "(… liberi)".
++         * Remove only this known suffix in the UI, never change volume names. */
++        suffix = g_regex_new (" \\([^()]* liberi\\)$", 0, 0, NULL);
++        name = g_regex_replace_literal (suffix, self->label, -1, 0, "", 0, NULL);
++        if (name == NULL || *name == '\0')
++        {
++            return;
++        }
++        g_object_set (self, "label", name, NULL);
++        gtk_widget_add_css_class (GTK_WIDGET (self), "codlab-disk");
++        if (g_str_equal (name, "BANCO"))
++        {
++            icon_name = "folder-violet-development";
++        }
++        else if (g_str_equal (name, "Backup"))
++        {
++            icon_name = "folder-orange-backup";
++        }
++        else if (g_str_equal (name, "Media") || g_str_equal (name, "Film") ||
++                 g_str_equal (name, "Serie") || strstr (name, "Plex") != NULL)
++        {
++            icon_name = "folder-cyan-videos";
++        }
++        else
++        {
++            icon_name = "folder-blue";
++        }
++        theme = gtk_icon_theme_get_for_display (gtk_widget_get_display (GTK_WIDGET (self)));
++        if (gtk_icon_theme_has_icon (theme, icon_name))
++        {
++            g_autoptr (GIcon) icon = g_themed_icon_new (icon_name);
++            nautilus_sidebar_row_set_start_icon (self, icon);
++        }
++    }
++}
++
+ static void
+ nautilus_sidebar_row_dispose (GObject *object)
+ {
+     NautilusSidebarRow *self = NAUTILUS_SIDEBAR_ROW (object);
+ 
++    capacity_stop (self);
+     gtk_list_box_row_set_child (GTK_LIST_BOX_ROW (self), NULL);
+     gtk_widget_dispose_template (GTK_WIDGET (self), NAUTILUS_TYPE_SIDEBAR_ROW);
+ 
+@@ -598,6 +783,8 @@ nautilus_sidebar_row_class_init (NautilusSidebarRowClass *klass)
+     GObjectClass *object_class = G_OBJECT_CLASS (klass);
+     GtkWidgetClass *widget_class = GTK_WIDGET_CLASS (klass);
+ 
++    widget_class->map = nautilus_sidebar_row_map;
++    widget_class->unmap = nautilus_sidebar_row_unmap;
+     object_class->get_property = nautilus_sidebar_row_get_property;
+     object_class->set_property = nautilus_sidebar_row_set_property;
+     object_class->dispose = nautilus_sidebar_row_dispose;
+@@ -751,6 +938,9 @@ nautilus_sidebar_row_class_init (NautilusSidebarRowClass *klass)
+     gtk_widget_class_bind_template_child (widget_class, NautilusSidebarRow, eject_button);
+     gtk_widget_class_bind_template_child (widget_class, NautilusSidebarRow, revealer);
+     gtk_widget_class_bind_template_child (widget_class, NautilusSidebarRow, busy_spinner);
++    gtk_widget_class_bind_template_child (widget_class, NautilusSidebarRow, capacity_box);
++    gtk_widget_class_bind_template_child (widget_class, NautilusSidebarRow, capacity_label);
++    gtk_widget_class_bind_template_child (widget_class, NautilusSidebarRow, capacity_bar);
+ 
+     gtk_widget_class_bind_template_callback (widget_class, on_child_revealed);
+     gtk_widget_class_set_css_name (widget_class, "row");
+diff --git a/src/nautilus-sidebar-row.h b/src/nautilus-sidebar-row.h
+index f71277e..7a56c04 100644
+--- a/src/nautilus-sidebar-row.h
++++ b/src/nautilus-sidebar-row.h
+@@ -16,6 +16,8 @@ G_DECLARE_FINAL_TYPE (NautilusSidebarRow,
+                       NAUTILUS, SIDEBAR_ROW,
+                       GtkListBoxRow)
+ 
++void nautilus_sidebar_row_update_mount (NautilusSidebarRow *self);
++
+ NautilusSidebarRow *nautilus_sidebar_row_new_placeholder (void);
+ 
+ NautilusSidebarRow *nautilus_sidebar_row_clone  (NautilusSidebarRow *self);
+diff --git a/src/nautilus-sidebar.c b/src/nautilus-sidebar.c
+index 228cf8a..c630e8c 100644
+--- a/src/nautilus-sidebar.c
++++ b/src/nautilus-sidebar.c
+@@ -428,6 +428,8 @@ add_place (NautilusSidebar           *sidebar,
+ #endif
+                         NULL);
+ 
++    nautilus_sidebar_row_update_mount (NAUTILUS_SIDEBAR_ROW (row));
++
+     eject_button = nautilus_sidebar_row_get_eject_button (NAUTILUS_SIDEBAR_ROW (row));
+ 
+     g_signal_connect_swapped (eject_button, "clicked",
+@@ -574,6 +576,15 @@ add_sidebar_group (NautilusSidebar            *self,
+     gtk_list_box_row_set_selectable (GTK_LIST_BOX_ROW (row), FALSE);
+     gtk_list_box_row_set_activatable (GTK_LIST_BOX_ROW (row), FALSE);
+     gtk_widget_set_focusable (row, FALSE);
++    gtk_widget_add_css_class (row, "codlab-group");
++    GtkWidget *badge = gtk_image_new_from_icon_name (
++        section == NAUTILUS_SIDEBAR_SECTION_PLEX ? "video-x-generic-symbolic" :
++        section == NAUTILUS_SIDEBAR_SECTION_BOOKMARKS ? "folder-symbolic" : "drive-multidisk-symbolic");
++    gtk_widget_add_css_class (badge, "codlab-group-icon");
++    gtk_widget_add_css_class (badge,
++        section == NAUTILUS_SIDEBAR_SECTION_PLEX ? "role-media" :
++        section == NAUTILUS_SIDEBAR_SECTION_BOOKMARKS ? "role-work" : "role-disks");
++    gtk_box_append (GTK_BOX (box), badge);
+     gtk_widget_add_css_class (label, "heading");
+     gtk_widget_set_hexpand (label, TRUE);
+     gtk_label_set_xalign (GTK_LABEL (label), 0);
+diff --git a/src/resources/ui/nautilus-sidebar-row.blp b/src/resources/ui/nautilus-sidebar-row.blp
+index e9ffc0e..b448d0c 100644
+--- a/src/resources/ui/nautilus-sidebar-row.blp
++++ b/src/resources/ui/nautilus-sidebar-row.blp
+@@ -23,11 +23,33 @@ template $NautilusSidebarRow: ListBoxRow {
+         }
+       }
+ 
+-      Label label_widget {
++      Box {
++        orientation: vertical;
++        valign: center;
+         hexpand: true;
+-        xalign: 0;
+-        ellipsize: middle;
+-        margin-end: 2;
++        spacing: 4;
++
++        Label label_widget {
++          xalign: 0;
++          ellipsize: middle;
++          margin-end: 2;
++        }
++
++        Box capacity_box {
++          orientation: vertical;
++          spacing: 4;
++          visible: false;
++
++          Label capacity_label {
++            xalign: 0;
++            ellipsize: end;
++            styles [ "codlab-space-text" ]
++          }
++
++          ProgressBar capacity_bar {
++            styles [ "codlab-space-bar" ]
++          }
++        }
+       }
+ 
+       Image end_icon_widget {
