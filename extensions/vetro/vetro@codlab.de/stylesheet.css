@@ -1,0 +1,479 @@
+/* Vetro CodLab (04.11.2026). Le classi vetro-codlab, vetro-<tipo> e vetro-chiaro le mette
+   SOLO l'estensione, e solo mentre il suo vetro dipinge: spento il vetro (canarino, sentinella, cane da guardia,
+   interruttore) le superfici tornano al tema di serie.
+   Specificità: ogni regola ha la classe della superficie in più di quella del tema che sostituisce (un foglio
+   d'estensione con specificità più alta vince sul tema: provato nell'isola il 30.10, trappola 2 del giro 7).
+   Contrasto: il vetro fumé ha luminanza ≤ 0,05 (testo bianco ≥ 17:1 sul vetro nudo), il latteo ≥ 0,40 (#1d1d1f ≥ 7:1);
+   gli strati interni e i testi secondari sono scelti perché reggano 4,5:1 anche sopra lo strato più chiaro o più scuro.
+   Il giudice resta contrasto.py sugli scatti. */
+
+/* ---------- 1. il fondo del tema diventa trasparente dove c'è il vetro ---------- */
+/* Niente box-shadow sulle superfici col vetro (chiusura 2): St dipinge l'ombra anche DENTRO il riquadro, SOPRA il vetro
+   (il nostro effetto dipinge prima dell'attore), e il latteo diventava grigio (c2-diag-ombra: L 0,43 invece di 0,75; menu
+   Accessibilità 4,44:1). L'ombra portata la disegna lo shader, fuori dal vetro e sotto di lui (MATERIALI in extension.js). */
+#panel.vetro-codlab {
+  background-color: transparent;
+}
+.popup-menu-content.vetro-codlab,
+.popup-menu-content.quick-settings.vetro-codlab,
+.popup-menu-content.datemenu-popover.vetro-codlab {
+  background-color: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+.message.notification-banner.vetro-codlab {
+  background-color: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+.osd-window.vetro-codlab {
+  background-color: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+/* ---------- 2. profondità per strati (fumé): niente velo unico sui pannelli grandi ---------- */
+.vetro-codlab .quick-toggle,
+.vetro-codlab .quick-toggle-has-menu .quick-toggle-menu-button,
+.vetro-codlab .quick-settings-system-item .icon-button,
+.vetro-codlab .quick-settings-system-item .power-item {
+  background-color: rgba(255, 255, 255, 0.075);
+}
+.vetro-codlab .quick-toggle:hover,
+.vetro-codlab .quick-toggle-has-menu .quick-toggle-menu-button:hover,
+.vetro-codlab .quick-settings-system-item .icon-button:hover {
+  background-color: rgba(255, 255, 255, 0.13);
+}
+.vetro-codlab .quick-toggle-menu,
+.vetro-codlab .message,
+.vetro-codlab .events-button,
+.vetro-codlab .world-clocks-button,
+.vetro-codlab .weather-button {
+  background-color: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+.vetro-codlab .message:hover,
+.vetro-codlab .events-button:hover,
+.vetro-codlab .world-clocks-button:hover,
+.vetro-codlab .weather-button:hover {
+  background-color: rgba(255, 255, 255, 0.11);
+}
+.vetro-codlab .calendar,
+.vetro-codlab .datemenu-today-button {
+  background-color: transparent;
+}
+.vetro-codlab .calendar:hover,
+.vetro-codlab .datemenu-today-button:hover {
+  background-color: rgba(255, 255, 255, 0.07);
+}
+.vetro-codlab .popup-menu-item:hover,
+.vetro-codlab .popup-menu-item:focus,
+.vetro-codlab .popup-menu-item:selected {
+  background-color: rgba(255, 255, 255, 0.11);
+}
+.vetro-codlab .popup-separator-menu-item .popup-separator-menu-item-separator {
+  background-color: rgba(255, 255, 255, 0.10);
+}
+.message.notification-banner.vetro-codlab .message,
+.message.notification-banner.vetro-codlab:hover {
+  background-color: transparent;
+}
+
+/* il calendario: giorni, iniziali e frecce senza il fondo opaco del tema (#36363a). Pagato nella misura vc-chiaro (04.11
+   01:31): nel latteo il testo scuro restava sui pulsanti scuri del tema, 1,03:1 */
+.vetro-codlab .calendar .calendar-day,
+.vetro-codlab .calendar .calendar-day-heading,
+.vetro-codlab .calendar .calendar-week-number,
+.vetro-codlab .calendar .calendar-month-header .pager-button {
+  background-color: transparent;
+}
+.vetro-codlab .calendar .calendar-day:hover,
+.vetro-codlab .calendar .calendar-day:focus,
+.vetro-codlab .calendar .calendar-month-header .pager-button:hover {
+  background-color: rgba(255, 255, 255, 0.10);
+}
+/* iniziali dei giorni e data di oggi: nel tema sono bianco attenuato (4,06–4,2:1 sul fumé nella misura vc-scuro, 01:32) */
+.vetro-codlab .calendar .calendar-day-heading {
+  color: #d8d8dc;
+}
+.vetro-codlab .datemenu-today-button .day-label,
+.vetro-codlab .datemenu-today-button .date-label {
+  color: #ffffff;
+}
+.vetro-chiaro.popup-menu-content .datemenu-today-button .day-label,
+.vetro-chiaro.popup-menu-content .datemenu-today-button .date-label,
+.vetro-chiaro.popup-menu-content .calendar .calendar-day-heading {
+  color: #1d1d1f !important;
+}
+.vetro-chiaro.popup-menu-content .calendar .calendar-day:hover,
+.vetro-chiaro.popup-menu-content .calendar .calendar-day:focus,
+.vetro-chiaro.popup-menu-content .calendar .calendar-month-header .pager-button:hover,
+.vetro-chiaro.popup-menu-content .calendar .calendar-month-header .pager-button:focus,
+.vetro-chiaro.popup-menu-content .calendar .calendar-month-header .calendar-month-label:hover,
+.vetro-chiaro.popup-menu-content .calendar .calendar-month-header .calendar-month-label:focus,
+.vetro-chiaro.popup-menu-content .datemenu-today-button:focus {
+  background-color: rgba(0, 0, 0, 0.08) !important;
+}
+/* la pillola di fuoco del tema dietro «novembre» (#5a5a5f) col testo scuro del latteo era 2,4:1, e nello scatto B sparisce
+   insieme al testo (è il fondo della stessa etichetta): un punto cieco della misura, visto a occhio nelle anteprime (01:41) */
+.vetro-codlab .calendar .calendar-month-header .calendar-month-label {
+  background-color: transparent;
+}
+.vetro-codlab .calendar .calendar-month-header .calendar-month-label:focus,
+.vetro-codlab .calendar .calendar-month-header .calendar-month-label:hover {
+  background-color: rgba(255, 255, 255, 0.10);
+}
+
+/* testi secondari del tema (#b2b2b4, #9b9b9d, bianco al 50 %): più chiari, perché reggano 4,5:1 sul vetro fumé più
+   chiaro con lo strato interno sopra */
+.vetro-codlab .calendar .calendar-day.calendar-weekend,
+.vetro-codlab .calendar .calendar-week-number {
+  color: #c6c6ca;
+}
+.vetro-codlab .calendar .calendar-day.calendar-other-month,
+.vetro-codlab .calendar .calendar-day.calendar-other-month.calendar-weekend {
+  color: rgba(255, 255, 255, 0.66);
+}
+.vetro-codlab .events-button .events-box .events-title,
+.vetro-codlab .events-button .events-box .events-list .event-box .event-time,
+.vetro-codlab .events-button .events-box .events-list .event-placeholder,
+.vetro-codlab .world-clocks-button .world-clocks-header,
+.vetro-codlab .world-clocks-button .world-clocks-grid .world-clocks-timezone,
+.vetro-codlab .weather-button .weather-box .weather-header-box .weather-header,
+.vetro-codlab .message .message-header,
+.vetro-codlab .message .message-header .message-header-content .event-time {
+  color: #cfcfd3;
+}
+.vetro-codlab .message-list .message-list-placeholder {
+  color: rgba(255, 255, 255, 0.70);
+}
+
+/* riempimenti d'accento: #1c71d8 col bianco 4,77:1 (come Rifiniture sotto Blur my Shell, che qui non mette la sua classe) */
+.vetro-codlab .quick-settings-grid .quick-toggle:checked,
+.vetro-codlab .quick-settings-grid .quick-toggle-has-menu .quick-toggle-menu-button:checked,
+.vetro-codlab .calendar .calendar-day.calendar-today,
+.vetro-codlab .calendar .calendar-day.calendar-today:selected,
+.vetro-codlab .calendar .calendar-day.calendar-today:checked {
+  background-color: #1c71d8 !important;
+  color: #ffffff !important;
+}
+.vetro-codlab .quick-settings-grid .quick-toggle:checked:hover,
+.vetro-codlab .quick-settings-grid .quick-toggle-has-menu .quick-toggle-menu-button:checked:hover,
+.vetro-codlab .calendar .calendar-day.calendar-today:hover,
+.vetro-codlab .calendar .calendar-day.calendar-today:focus {
+  background-color: #1f6fd6 !important;
+  color: #ffffff !important;
+}
+.vetro-codlab .quick-settings-grid .quick-toggle:checked:active,
+.vetro-codlab .quick-settings-grid .quick-toggle-has-menu .quick-toggle-menu-button:checked:active {
+  background-color: #1a5fb4 !important;
+  color: #ffffff !important;
+}
+.vetro-codlab .quick-settings-grid .quick-toggle-has-menu:checked .quick-toggle-separator {
+  background-color: rgba(255, 255, 255, 0.28) !important;
+}
+
+/* ---------- 3. polarità chiara: vetro latteo, testo e icone scuri ---------- */
+#panel.vetro-codlab.vetro-chiaro .panel-button,
+#panel.vetro-codlab.vetro-chiaro .panel-button.clock-display {
+  color: #1d1d1f;
+}
+#panel.vetro-codlab.vetro-chiaro .panel-button:hover,
+#panel.vetro-codlab.vetro-chiaro .panel-button:active,
+#panel.vetro-codlab.vetro-chiaro .panel-button:checked,
+#panel.vetro-codlab.vetro-chiaro .panel-button:focus {
+  box-shadow: inset 0 0 0 100px rgba(0, 0, 0, 0.07);
+}
+#panel.vetro-codlab.vetro-chiaro .panel-button.clock-display .clock,
+#panel.vetro-codlab.vetro-chiaro .panel-button:hover.clock-display .clock,
+#panel.vetro-codlab.vetro-chiaro .panel-button:active.clock-display .clock,
+#panel.vetro-codlab.vetro-chiaro .panel-button:checked.clock-display .clock {
+  box-shadow: none;
+}
+
+.vetro-chiaro.popup-menu-content,
+.vetro-chiaro.popup-menu-content .popup-menu-item,
+.vetro-chiaro.popup-menu-content .popup-menu-item:hover,
+.vetro-chiaro.popup-menu-content .popup-menu-item:active,
+.vetro-chiaro.popup-menu-content .popup-menu-item:selected,
+.vetro-chiaro.popup-menu-content .popup-inactive-menu-item,
+.vetro-chiaro.popup-menu-content .popup-sub-menu .popup-menu-item,
+.vetro-chiaro.popup-menu-content .quick-toggle,
+.vetro-chiaro.popup-menu-content .quick-toggle-menu,
+.vetro-chiaro.popup-menu-content .quick-toggle-has-menu .quick-toggle-menu-button,
+.vetro-chiaro.popup-menu-content .quick-slider .slider-bin:focus,
+.vetro-chiaro.popup-menu-content .icon-button,
+.vetro-chiaro.popup-menu-content .message,
+.vetro-chiaro.popup-menu-content .message .message-header .message-expand-button,
+.vetro-chiaro.popup-menu-content .message .message-header .message-close-button,
+.vetro-chiaro.popup-menu-content .message-notification-group .message-collapse-button,
+.vetro-chiaro.popup-menu-content .message-media-control,
+.vetro-chiaro.popup-menu-content .events-button,
+.vetro-chiaro.popup-menu-content .world-clocks-button,
+.vetro-chiaro.popup-menu-content .world-clocks-button .world-clocks-header.no-world-clocks,
+.vetro-chiaro.popup-menu-content .weather-button,
+.vetro-chiaro.popup-menu-content .weather-button .weather-box .weather-header-box .weather-header.no-location,
+.vetro-chiaro.popup-menu-content .calendar,
+.vetro-chiaro.popup-menu-content .datemenu-today-button,
+.vetro-chiaro.popup-menu-content .calendar .calendar-day-heading,
+.vetro-chiaro.popup-menu-content .calendar .calendar-day,
+.vetro-chiaro.popup-menu-content .calendar .calendar-month-header .calendar-month-label,
+.vetro-chiaro.popup-menu-content .calendar .calendar-month-header .pager-button,
+.vetro-chiaro.message.notification-banner,
+.vetro-chiaro.message.notification-banner .message-header .message-expand-button,
+.vetro-chiaro.message.notification-banner .message-header .message-close-button,
+.vetro-chiaro.osd-window {
+  color: #1d1d1f !important;
+}
+.vetro-chiaro.popup-menu-content .calendar .calendar-day.calendar-weekend,
+.vetro-chiaro.popup-menu-content .calendar .calendar-week-number,
+.vetro-chiaro.popup-menu-content .events-button .events-box .events-title,
+.vetro-chiaro.popup-menu-content .events-button .events-box .events-list .event-box .event-time,
+.vetro-chiaro.popup-menu-content .events-button .events-box .events-list .event-placeholder,
+.vetro-chiaro.popup-menu-content .world-clocks-button .world-clocks-header,
+.vetro-chiaro.popup-menu-content .world-clocks-button .world-clocks-grid .world-clocks-timezone,
+.vetro-chiaro.popup-menu-content .weather-button .weather-box .weather-header-box .weather-header,
+.vetro-chiaro.popup-menu-content .message .message-header,
+.vetro-chiaro.popup-menu-content .message .message-header .message-header-content .event-time,
+.vetro-chiaro.popup-menu-content .message-list .message-list-placeholder,
+.vetro-chiaro.message.notification-banner .message-header,
+.vetro-chiaro.message.notification-banner .message-header .message-header-content .event-time {
+  color: #2e2e31 !important;
+}
+.vetro-chiaro.popup-menu-content .calendar .calendar-day.calendar-other-month,
+.vetro-chiaro.popup-menu-content .calendar .calendar-day.calendar-other-month.calendar-weekend {
+  color: #38383b !important;
+}
+/* strati del latteo: più chiari del vetro (il testo scuro guadagna contrasto); passaggio del puntatore appena più scuro */
+.vetro-chiaro.popup-menu-content .quick-toggle,
+.vetro-chiaro.popup-menu-content .quick-toggle-has-menu .quick-toggle-menu-button,
+.vetro-chiaro.popup-menu-content .quick-settings-system-item .icon-button,
+.vetro-chiaro.popup-menu-content .message,
+.vetro-chiaro.popup-menu-content .events-button,
+.vetro-chiaro.popup-menu-content .world-clocks-button,
+.vetro-chiaro.popup-menu-content .weather-button,
+.vetro-chiaro.popup-menu-content .quick-toggle-menu {
+  background-color: rgba(255, 255, 255, 0.36);
+  border-color: rgba(255, 255, 255, 0.45);
+}
+.vetro-chiaro.popup-menu-content .quick-toggle:hover,
+.vetro-chiaro.popup-menu-content .quick-toggle-has-menu .quick-toggle-menu-button:hover,
+.vetro-chiaro.popup-menu-content .quick-settings-system-item .icon-button:hover,
+.vetro-chiaro.popup-menu-content .message:hover,
+.vetro-chiaro.popup-menu-content .events-button:hover,
+.vetro-chiaro.popup-menu-content .world-clocks-button:hover,
+.vetro-chiaro.popup-menu-content .weather-button:hover,
+.vetro-chiaro.popup-menu-content .popup-menu-item:hover,
+.vetro-chiaro.popup-menu-content .popup-menu-item:focus,
+.vetro-chiaro.popup-menu-content .popup-menu-item:selected,
+.vetro-chiaro.popup-menu-content .calendar .calendar-day:hover,
+.vetro-chiaro.popup-menu-content .datemenu-today-button:hover {
+  background-color: rgba(0, 0, 0, 0.06);
+}
+.vetro-chiaro.popup-menu-content .popup-separator-menu-item .popup-separator-menu-item-separator {
+  background-color: rgba(0, 0, 0, 0.12);
+}
+/* l'accento resta pieno col testo bianco anche nel latteo */
+.vetro-chiaro.popup-menu-content .quick-settings-grid .quick-toggle:checked,
+.vetro-chiaro.popup-menu-content .quick-settings-grid .quick-toggle-has-menu .quick-toggle-menu-button:checked,
+.vetro-chiaro.popup-menu-content .calendar .calendar-day.calendar-today {
+  background-color: #1c71d8 !important;
+  color: #ffffff !important;
+}
+
+/* ---------- 4. chiusura 1 (D3 e D4, 04.11.2026): controlli non testuali e pulsanti nel latteo ----------
+   Il latteo è un «tema chiaro» dentro il tema scuro: ciò che il tema scuro disegna bianco con un FONDO (non col colore del
+   testo) restava bianco sul vetro bianco. Le scelte ricalcano il tema chiaro della Shell 51 (gnome-shell-light.css) con
+   il nostro scuro #1d1d1f; il giudice resta il semaforo (icone e controlli ≥ 3:1), che ora li misura. */
+/* barra: i pallini degli spazi di lavoro sono un background-color (#ffffff nel tema scuro), e la Shell dà agli inattivi
+   metà opacità: con #1d1d1f l'inattivo stava a 2,74:1 (misura c1-chiaro, 03:32); il nero pieno a metà opacità regge 3,2:1
+   anche sul latteo più scuro (0,40) */
+#panel.vetro-codlab.vetro-chiaro .panel-button#panelActivities .workspace-dot {
+  background-color: #000000;
+}
+/* OSD: la barra del livello si colora con le proprietà -barlevel-*, non con color */
+.vetro-chiaro.osd-window .level {
+  -barlevel-background-color: rgba(0, 0, 0, 0.14);
+  -barlevel-active-background-color: #1d1d1f;
+}
+/* cursori dei menu (volume, luminosità): maniglia = colore del testo, riempimento scuro come l'OSD (l'accento #1c71d8
+   sul latteo più scuro, 0,40, starebbe a 2,2:1) */
+.vetro-chiaro.popup-menu-content .slider {
+  color: #1d1d1f;
+  -barlevel-background-color: rgba(0, 0, 0, 0.14);
+  -barlevel-active-background-color: #1d1d1f;
+}
+.vetro-chiaro.popup-menu-content .slider:hover {
+  color: #000000;
+}
+/* pulsanti «flat» (l'icona del cursore del volume, i pulsanti piatti dei menu): nel tema scuro il loro fondo è il fondo
+   opaco del popup (#36363a), che sul vetro diventava un rettangolo scuro, nel latteo ben visibile (scatto c1-chiaro,
+   03:40, col cursore del volume mostrato). Come i giorni del calendario: trasparenti, e un velo al passaggio */
+.vetro-codlab .icon-button.flat,
+.vetro-codlab .icon-button.flat:insensitive,
+.vetro-codlab .button.flat,
+.vetro-codlab .button.flat:insensitive {
+  background-color: transparent;
+}
+.vetro-codlab .icon-button.flat:hover,
+.vetro-codlab .icon-button.flat:focus,
+.vetro-codlab .button.flat:hover,
+.vetro-codlab .button.flat:focus {
+  background-color: rgba(255, 255, 255, 0.10);
+}
+.vetro-chiaro.popup-menu-content .icon-button.flat:hover,
+.vetro-chiaro.popup-menu-content .icon-button.flat:focus,
+.vetro-chiaro.popup-menu-content .button.flat:hover,
+.vetro-chiaro.popup-menu-content .button.flat:focus {
+  background-color: rgba(0, 0, 0, 0.08);
+}
+/* interruttori dei menu delle estensioni: binario e maniglia del tema chiaro */
+.vetro-chiaro.popup-menu-content .toggle-switch {
+  color: #1d1d1f;
+  background: rgba(0, 0, 0, 0.15);
+}
+.vetro-chiaro.popup-menu-content .toggle-switch:hover {
+  background: rgba(0, 0, 0, 0.20);
+}
+.vetro-chiaro.popup-menu-content .toggle-switch .handle {
+  background: #ffffff;
+}
+.vetro-chiaro.popup-menu-content .toggle-switch:checked {
+  background: #1c71d8;
+  color: #ffffff;
+}
+
+/* dock: il vetro sta sul fondo (fratello delle icone, vetro-chiaro lì non le raggiunge); l'estensione mette
+   vetro-dock-chiaro sul dash, loro antenato. «Mostra applicazioni» è un'icona simbolica; il pallino delle app aperte
+   (stile DOT di Dash to Dock) prende il fondo di .app-well-app-running-dot */
+#dash.vetro-dock-chiaro .dash-item-container .show-apps .overview-icon,
+#dash.vetro-dock-chiaro .dash-item-container .show-apps:hover .overview-icon,
+#dash.vetro-dock-chiaro .dash-item-container .show-apps:focus .overview-icon,
+#dash.vetro-dock-chiaro .dash-item-container .show-apps:active .overview-icon,
+#dash.vetro-dock-chiaro .dash-item-container .show-apps:checked .overview-icon {
+  color: #1d1d1f !important;
+}
+#dash.vetro-dock-chiaro .dash-item-container .show-apps:hover .overview-icon,
+#dash.vetro-dock-chiaro .dash-item-container .overview-tile:hover .overview-icon,
+#dash.vetro-dock-chiaro .dash-item-container .overview-tile.focused .overview-icon,
+#dash.vetro-dock-chiaro .dash-item-container .app-well-app:hover .overview-icon,
+#dash.vetro-dock-chiaro .dash-item-container .app-well-app.focused .overview-icon {
+  background-color: rgba(0, 0, 0, 0.08) !important;
+}
+#dash.vetro-dock-chiaro .app-well-app-running-dot,
+#dash.vetro-dock-chiaro .app-grid-running-dot {
+  background-color: #1d1d1f !important;
+}
+#dash.vetro-dock-chiaro .dash-separator {
+  background-color: rgba(0, 0, 0, 0.16) !important;
+}
+
+/* pulsanti di testo nel latteo: «Pulisci» del calendario (message-list-clear-button), «Svuota tutto» di
+   svuota-notifiche@codlab e le azioni delle notifiche (notification-button) erano pillole antracite (#3d3d3f) o bianche
+   del tema scuro (V-PULSANTI-LATTEO, D4): nel latteo sono uno strato chiaro come le schede, col testo scuro */
+.vetro-chiaro.popup-menu-content .message-list-clear-button,
+.vetro-chiaro.popup-menu-content .svuota-notifiche-button,
+.vetro-chiaro.popup-menu-content .notification-button,
+.vetro-chiaro.message.notification-banner .svuota-notifiche-button,
+.vetro-chiaro.message.notification-banner .notification-button {
+  color: #1d1d1f !important;
+  background-color: rgba(255, 255, 255, 0.55) !important;
+  border: 1px solid rgba(0, 0, 0, 0.07);
+}
+.vetro-chiaro.popup-menu-content .message-list-clear-button:hover,
+.vetro-chiaro.popup-menu-content .svuota-notifiche-button:hover,
+.vetro-chiaro.popup-menu-content .notification-button:hover,
+.vetro-chiaro.message.notification-banner .svuota-notifiche-button:hover,
+.vetro-chiaro.message.notification-banner .notification-button:hover {
+  background-color: rgba(255, 255, 255, 0.78) !important;
+}
+.vetro-chiaro.popup-menu-content .message-list-clear-button:active,
+.vetro-chiaro.popup-menu-content .svuota-notifiche-button:active,
+.vetro-chiaro.popup-menu-content .notification-button:active,
+.vetro-chiaro.message.notification-banner .svuota-notifiche-button:active,
+.vetro-chiaro.message.notification-banner .notification-button:active {
+  background-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+/* ---------- 5. chiusura 2 (S3, 04.11.2026): testi disattivati ≥ 4,5:1 ----------
+   «Pulisci»/«Clear» DISATTIVATO (calendario con solo il messaggio di un lettore musicale, che non si chiude): nel tema era
+   bianco a metà opacità sul pulsante #404043, 3,91:1. Fumé: fondo appena accennato e bianco al 72 % (≥ 5,4:1 fino al
+   vetro più chiaro, 0,05); latteo: strato chiaro più tenue e #1d1d1f al 76 % (≥ 5,5:1 dal vetro più scuro, 0,40). Resta
+   riconoscibile come spento (più tenue del pulsante attivo), e regge il requisito «ogni testo ≥4,5:1». */
+.vetro-codlab .message-list-clear-button:insensitive {
+  color: rgba(255, 255, 255, 0.72) !important;
+  background-color: rgba(255, 255, 255, 0.06) !important;
+}
+.vetro-chiaro.popup-menu-content .message-list-clear-button:insensitive {
+  color: rgba(29, 29, 31, 0.76) !important;
+  background-color: rgba(255, 255, 255, 0.30) !important;
+  border-color: rgba(0, 0, 0, 0.05);
+}
+
+/* ---------- 6. chiusura 2: fumé senza l'ombra CSS sopra (il vetro arriva al suo limite) ----------
+   Il banner È lui il .message: «.vetro-codlab .message .message-header» non lo raggiungeva, e l'app e l'ora restavano
+   #b2b2b4 del tema, 4,38:1 sul fumé al limite 0,06 (misura c2-scuro, 04.11 10:24). Come i secondari dei popup: #cfcfd3. */
+.message.notification-banner.vetro-codlab .message-header,
+.message.notification-banner.vetro-codlab .message-header .message-header-content .event-time {
+  color: #cfcfd3;
+}
+/* il riempimento dei cursori (volume, luminosità) nel fumé: l'azzurro #3584e4 sul vetro al limite 0,05 stava a 2,69:1;
+   l'azzurro chiaro #62a0ea regge 3,7:1 (controllo non testuale, soglia 3:1) */
+.vetro-codlab .slider {
+  -barlevel-active-background-color: #62a0ea;
+}
+
+/* ---------- 7. chiusura 2, bellezza 2: gerarchia di materiale sul latteo ----------
+   Tolta l'ombra interna il latteo è chiaro davvero (L 0,76): le schede bianche al 36 % ci sparivano dentro. Strati
+   distinti come un vetro spesso: la griglia del calendario diventa una lastra propria, le schede hanno il fondo più
+   bianco e un filo di luce in alto (ombra INTERNA: St la dipinge sopra il loro fondo, che è ciò che si vuole qui). */
+.vetro-chiaro.popup-menu-content .calendar {
+  background-color: rgba(255, 255, 255, 0.24) !important;
+  border-radius: 18px;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.70);
+}
+.vetro-chiaro.popup-menu-content .quick-toggle,
+.vetro-chiaro.popup-menu-content .quick-toggle-has-menu .quick-toggle-menu-button,
+.vetro-chiaro.popup-menu-content .quick-settings-system-item .icon-button,
+.vetro-chiaro.popup-menu-content .message,
+.vetro-chiaro.popup-menu-content .events-button,
+.vetro-chiaro.popup-menu-content .world-clocks-button,
+.vetro-chiaro.popup-menu-content .weather-button,
+.vetro-chiaro.popup-menu-content .quick-toggle-menu {
+  background-color: rgba(255, 255, 255, 0.52);
+  border-color: rgba(255, 255, 255, 0.80);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.85);
+}
+/* fumé: la stessa gerarchia, in piccolo (il limitatore tiene il contrasto: +6 % di bianco è previsto) */
+.vetro-codlab .calendar {
+  background-color: rgba(255, 255, 255, 0.04);
+  border-radius: 18px;
+}
+
+/* ---------- 8. chiusura 2 (S-SWITCH): interruttori ≥ 3:1 (controllo non testuale) ----------
+   Misura c2f-chiaro / c2f-scuro (04.11 15:34): binario acceso 2,69:1 sul vetro in tutti e due i poli (#3584e4 sul fumé
+   al limite, #1c71d8 sul latteo), maniglia spenta bianca 2,34:1 sul binario spento traslucido del latteo.
+   Fumé: il binario acceso prende l'azzurro chiaro dei cursori (#62a0ea, 3,5:1 sul vetro fino a L 0,06) e la maniglia
+   accesa diventa blu notte (5,3:1 sul binario), come nei temi scuri di Material 3: con la maniglia bianca il binario
+   dovrebbe stare fra L 0,25 e 0,30 (3,1–3,2:1 da tutte e due le parti, margini troppo stretti). Spenta resta del tema. */
+.vetro-codlab.popup-menu-content .toggle-switch:checked {
+  background-color: #62a0ea;
+}
+.vetro-codlab.popup-menu-content .toggle-switch:checked .handle {
+  background-color: #102a4c;
+}
+/* Latteo: binario acceso blu profondo #134b8e (3,7:1 sul latteo più scuro, L 0,40; maniglia bianca 8,7:1), binario
+   spento grigio PIENO #86868b (la maniglia bianca ci sta a 3,6:1 qualunque sia il vetro dietro). */
+.vetro-chiaro.popup-menu-content .toggle-switch {
+  background-color: #86868b;
+}
+.vetro-chiaro.popup-menu-content .toggle-switch:hover {
+  background-color: #7c7c82;
+}
+.vetro-chiaro.popup-menu-content .toggle-switch:checked,
+.vetro-chiaro.popup-menu-content .toggle-switch:checked:hover {
+  background-color: #134b8e;
+}
+.vetro-chiaro.popup-menu-content .toggle-switch:checked .handle {
+  background-color: #ffffff;
+}
