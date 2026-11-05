@@ -1,4 +1,6 @@
 #!/usr/bin/python3 -B
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
 """Posa e ritorno del Vetro CodLab (04.11.2026). Solo utente, niente sudo; vale dal prossimo login, con un ritorno
 che rimette com'era ciò che la posa ha cambiato.
 

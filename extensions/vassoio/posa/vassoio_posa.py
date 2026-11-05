@@ -1,4 +1,6 @@
 #!/usr/bin/python3 -B
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
 """Posa e ritorno del Vassoio (vassoio@codlab.de), 04.11.2026. PREPARATA, NON ESEGUITA sulla sessione vera. Solo utente,
 niente sudo. Vale dal PROSSIMO LOGIN (la Shell 51 vede una cartella d'estensione nuova soltanto all'avvio).
 

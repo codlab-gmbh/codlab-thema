@@ -191,8 +191,8 @@ third-party wallpaper and a personal dock, and will be re-shot on a neutral back
 
 Every piece goes through the same chain, and the chain is the point:
 
-1. **One writer, two independent reviewers.** Each piece is written by one model and reviewed by several independent
-   models. The two reviewers who sign do not read each other's verdict, and **they execute**: they reproduce defects,
+1. **One writer, two independent reviewers.** Each piece has one author and two independent
+   reviewers. The two reviewers who sign do not read each other's verdict, and **they execute**: they reproduce defects,
    run red-before/green-after checks and mutation tests (deliberately broken copies that the tests must catch). **The
    writer never signs its own work.**
 2. **A score per area, no averages.** A piece goes into the package only at 9.5 out of 10 in every area. For the desktop we set the bar at
@@ -295,7 +295,14 @@ prototype, after the macOS feature it recreates), and we copy none of their icon
 **Built on the work of** the GNOME project (Shell, Mutter, GTK, libadwaita, Files), adw-gtk3, the Colloid icon and
 cursor themes, the *Blur my Shell* extension and Fedora. Thank you.
 
-**Licence.** The text of this report is licensed under [CC BY 4.0](LICENSES/CC-BY-4.0.txt); the screenshots in `docs/img/` under [CC BY-SA 4.0](LICENSES/CC-BY-SA-4.0.txt), because they show icons and cursors from GPL/CC-BY-SA themes. Code published here later will be GPL-3.0-or-later (patches to Nautilus GPL-3.0-or-later, to its extension library LGPL-2.1-or-later, GNOME Shell extensions GPL-2.0-or-later), declared per file with SPDX headers. Third-party components keep their own licences. See [LICENSE.md](LICENSE.md).
+**Licence.** All code in this repository — extensions, scripts, packaging and Nautilus patches — is
+[GPL-3.0-or-later](LICENSE). Copyright (C) 2026 CodLab UG (haftungsbeschränkt).
+
+### Licenze / Licences
+
+The report text stays under [CC BY 4.0](LICENSES/CC-BY-4.0.txt); screenshots in `docs/img/` stay under
+[CC BY-SA 4.0](LICENSES/CC-BY-SA-4.0.txt). Neither is included in the binary packages. Component documentation
+ships with the code under GPL-3.0-or-later. Third-party components keep their own licences. See [LICENSE.md](LICENSE.md).
 
 ## 11. Code in this repository
 

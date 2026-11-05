@@ -1,4 +1,6 @@
 #!/usr/bin/python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
 # -*- coding: utf-8 -*-
 """Colonne «Dimensioni», «Scatto» e «Fotocamera» per le foto, nella vista a
 elenco di Nautilus.

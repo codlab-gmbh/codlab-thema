@@ -2,6 +2,10 @@
   "uuid": "rifiniture@codlab.de",
   "name": "Rifiniture",
   "description": "Rifiniture di GNOME, solo foglio di stile: gli stati attivi pieni (menu rapido, oggi nel calendario) con il testo bianco a contrasto AA anche sotto Blur my Shell, senza cambiare l'accento 'blue'.",
-  "shell-version": ["51"],
-  "version": 1
+  "shell-version": [
+    "51"
+  ],
+  "version": 1,
+  "license": "GPL-3.0-or-later",
+  "copyright": "Copyright (C) 2026 CodLab UG (haftungsbeschränkt)"
 }

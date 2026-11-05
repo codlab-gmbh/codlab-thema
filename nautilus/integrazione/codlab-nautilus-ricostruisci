@@ -1,4 +1,6 @@
 #!/usr/bin/python3 -B
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
 # codlab-nautilus-ricostruisci — il Nautilus CodLab si ricostruisce A MONTE, prima che Fedora lo tocchi.
 #
 # Perche' esiste (02.11.2026: «non si deve sovrascrivere il nostro»). Fino al 01.11 il

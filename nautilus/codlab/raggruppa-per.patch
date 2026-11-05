@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
 CodLab (incremento 3 «Nautilus potente»): Raggruppa per nella vista a elenco.
 
 Explorer ha «Raggruppa per» (tipo, data, dimensione) con righe di
@@ -240,7 +242,6 @@ diff -ruN a/src/nautilus-codlab-grouping.c b/src/nautilus-codlab-grouping.c
 +/* CodLab (INC-3 «Nautilus potente»): raggruppa la vista a elenco.
 + * Vedi nautilus-codlab-grouping.h per il disegno.
 + *
-+ * SPDX-License-Identifier: GPL-3.0-or-later
 + */
 +
 +#include <glib/gi18n.h>

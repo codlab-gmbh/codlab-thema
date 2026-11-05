@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later
+ * Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
+ */
 /* CodLab vetro per File — variante B: ANCHE la barra del titolo (barra degli strumenti di File e schede) è vetro, come le
    barre «uniformi e smerigliate» di macOS 27; il contenuto sotto resta pieno. Si aggiunge DOPO comune.css.
    Il contenuto si prende come in comune.css (giro di chiusura 1, K1): il toolbarview dell'unico «widget» di

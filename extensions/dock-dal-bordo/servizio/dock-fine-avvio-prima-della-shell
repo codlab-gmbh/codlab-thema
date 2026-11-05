@@ -1,4 +1,6 @@
 #!/usr/bin/python3 -B
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
 """Dock dal bordo, versione 2: PRIMA della Shell, se multi-monitor di Dash to Dock è vero lo spegne e
 scrive il segno ~/.config/meraviglioso/dock-dal-bordo-mm-sospeso; dock-dal-bordo (versione 2), trovato il segno durante
 l'avvio, lo riaccende a 'startup-complete'. Così Dash to Dock all'avvio crea il solo dock principale e il dock del 2K nasce

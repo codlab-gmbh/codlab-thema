@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
 diff --git a/data/org.gnome.nautilus.codlab.gschema.xml b/data/org.gnome.nautilus.codlab.gschema.xml
 index 550f532..3455786 100644
 --- a/data/org.gnome.nautilus.codlab.gschema.xml

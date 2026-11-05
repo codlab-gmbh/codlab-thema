@@ -193,7 +193,7 @@ di terzi e un dock personale, e saranno rifatte su uno sfondo neutro.*
 
 Ogni pezzo passa per la stessa catena, ed è la catena il punto:
 
-1. **Uno scrive, due revisori indipendenti.** Ogni pezzo lo scrive un modello e lo revisionano più modelli
+1. **Uno scrive, due revisori indipendenti.** Ogni pezzo ha un autore e due revisori
    indipendenti. I due revisori che firmano non leggono il verdetto l'uno dell'altro, ed **eseguono**: riproducono i
    difetti, fanno prove rosso-prima/verde-dopo e prove a mutanti (copie guastate apposta che le prove devono prendere).
    **Chi scrive non firma mai il proprio lavoro.**
@@ -296,7 +296,14 @@ prototipo, dalla funzione di macOS che ricrea) e non copiamo le loro icone, i lo
 **Costruito sul lavoro** del progetto GNOME (Shell, Mutter, GTK, libadwaita, File), di adw-gtk3, dei temi di icone e
 cursori Colloid, dell'estensione *Blur my Shell* e di Fedora. Grazie.
 
-**Licenza.** Il testo di questo resoconto è sotto [CC BY 4.0](LICENSES/CC-BY-4.0.txt), le schermate in `docs/img/` sotto [CC BY-SA 4.0](LICENSES/CC-BY-SA-4.0.txt), perché mostrano icone e cursori di temi GPL o CC-BY-SA. Il codice che pubblicheremo qui sarà GPL-3.0-or-later (patch di Nautilus GPL-3.0-or-later, della sua libreria delle estensioni LGPL-2.1-or-later, estensioni di GNOME Shell GPL-2.0-or-later), dichiarato file per file con intestazioni SPDX. I componenti di terzi mantengono le loro licenze. Vedi [LICENSE.md](LICENSE.md).
+**Licenza.** Tutto il codice di questo repository — estensioni, script, packaging e patch di Nautilus — è
+[GPL-3.0-or-later](LICENSE). Copyright (C) 2026 CodLab UG (haftungsbeschränkt).
+
+### Licenze
+
+Il testo del resoconto resta sotto [CC BY 4.0](LICENSES/CC-BY-4.0.txt); le schermate in `docs/img/` restano sotto
+[CC BY-SA 4.0](LICENSES/CC-BY-SA-4.0.txt). Entrambi sono esclusi dai pacchetti binari. La documentazione dei
+componenti accompagna il codice sotto GPL-3.0-or-later. I componenti di terzi mantengono le loro licenze. Vedi [LICENSE.md](LICENSE.md).
 
 ## 11. Il codice in questo repository
 

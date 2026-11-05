@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
 // Testimone passivo di Mochi (difetto 4, «Mochi vero non osservato»): quando l'utente apre e chiude la
 // panoramica da sé, guarda l'attore di Mochi e annota com'era. Non cambia niente: legge visible e is_mapped().
 // Un ciclo conta solo se Mochi era in scena (attore visibile): altrimenti «non in scena», nessuna prova.

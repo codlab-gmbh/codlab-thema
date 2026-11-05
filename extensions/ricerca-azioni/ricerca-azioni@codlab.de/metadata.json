@@ -2,6 +2,10 @@
   "uuid": "ricerca-azioni@codlab.de",
   "name": "Recenti e azioni",
   "description": "Nella ricerca della panoramica: azioni rapide (non disturbare, luce notturna, timer), conversioni ed emoji coi nomi italiani, file recenti. Tutto locale, nessuna rete.",
-  "shell-version": ["51"],
-  "version": 1
+  "shell-version": [
+    "51"
+  ],
+  "version": 1,
+  "license": "GPL-3.0-or-later",
+  "copyright": "Copyright (C) 2026 CodLab UG (haftungsbeschränkt)"
 }

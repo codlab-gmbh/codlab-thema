@@ -5,5 +5,7 @@
   "shell-version": [
     "51"
   ],
-  "version": 2
+  "version": 2,
+  "license": "GPL-3.0-or-later",
+  "copyright": "Copyright (C) 2026 CodLab UG (haftungsbeschränkt)"
 }

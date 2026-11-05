@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
 --- a/src/nautilus-bookmark.c	2026-09-22 07:07:54.062725093 +0200
 +++ b/src/nautilus-bookmark.c	2026-09-22 07:07:54.077527620 +0200
 @@ -191,6 +191,30 @@

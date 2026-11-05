@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
 diff --git a/po/it.po b/po/it.po
 index 09142ee..be263f6 100644
 --- a/po/it.po
@@ -26,7 +28,6 @@ index 0000000..fd65dc8
 --- /dev/null
 +++ b/src/nautilus-sidebar-capacity.h
 @@ -0,0 +1,24 @@
-+/* SPDX-License-Identifier: GPL-3.0-or-later */
 +#pragma once
 +#include <glib.h>
 +

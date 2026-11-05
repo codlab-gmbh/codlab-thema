@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
 // Preferenze del vassoio: l'elenco delle icone viste, da sinistra a destra, con ↑ ↓ per l'ordine e l'interruttore
 // «In barra» (spento = nel menu ⌄, raggiungibile col suo menu). Tutto vale a caldo, senza uscire dalla sessione.
 import Adw from 'gi://Adw';

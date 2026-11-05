@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
 // Il vassoio: ordine, posto (barra o menu ⌄) e doppioni delle icone di stato a destra della barra.
 // Non sposta niente fuori dalla barra e non tocca le estensioni altrui: riordina i loro contenitori nel _rightBox,
 // nasconde il CONTENITORE (mai il pulsante: AppIndicator usa `visible` per lo stato Passive, Tiling Shell per

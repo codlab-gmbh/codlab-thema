@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
 // Icone a filo: le icone piene note si sostituiscono sullo STESSO St.Icon, a caldo, con le simboliche di icons/.
 // Il proprietario continua a scrivere la sua icona (notify::gicon): si ricorda la sua ultima e si rimette la nostra
 // equivalente per lo stesso stato. Uno stato sconosciuto lascia l'icona del proprietario: mai uno stato inventato.

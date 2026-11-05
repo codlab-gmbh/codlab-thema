@@ -2,6 +2,10 @@
   "uuid": "centro-notifiche@codlab.de",
   "name": "Gestione notifiche",
   "description": "Elenco e chiusura delle notifiche GNOME per il comando notifiche.",
-  "shell-version": ["51"],
-  "version": 1
+  "shell-version": [
+    "51"
+  ],
+  "version": 1,
+  "license": "GPL-3.0-or-later",
+  "copyright": "Copyright (C) 2026 CodLab UG (haftungsbeschränkt)"
 }

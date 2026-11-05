@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
 ## START: Set by rpmautospec
 ## (rpmautospec version 0.8.4)
 ## RPMAUTOSPEC: autorelease, autochangelog

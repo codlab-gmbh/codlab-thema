@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
 %{!?con_gruppi:%global con_gruppi 1}
 %{!?codlab_release:%global codlab_release 1}
 Name:           nautilus-codlab-integrazione

@@ -2,8 +2,12 @@
   "uuid": "vassoio@codlab.de",
   "name": "Vassoio",
   "description": "Le icone di stato della barra in ordine, nella barra o nel menu ⌄ (ognuna col suo menu), a filo come quelle di sistema. Un doppione si vede una volta sola. Testimone passivo di Mochi in panoramica.",
-  "shell-version": ["51"],
+  "shell-version": [
+    "51"
+  ],
   "settings-schema": "org.gnome.shell.extensions.vassoio",
   "url": "https://codlab.de",
-  "version": 1
+  "version": 1,
+  "license": "GPL-3.0-or-later",
+  "copyright": "Copyright (C) 2026 CodLab UG (haftungsbeschränkt)"
 }

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
 // Le custom-icons di AppIndicator arrivano davvero (04.11.2026, misurato con PSI cpu al 19 %): AppIndicator le
 // calcola solo in _updateWhenFullyReady; sotto carico l'icona originale chiesta prima (segnale 'icon', con la mappa
 // delle custom ancora vuota) vince la corsa e resta in barra finché l'icona non viene smappata e rimappata — Discord e

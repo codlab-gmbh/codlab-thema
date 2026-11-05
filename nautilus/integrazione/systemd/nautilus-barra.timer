@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
 [Unit]
 Description=Controlla se un aggiornamento ha tolto la barra da Nautilus
 

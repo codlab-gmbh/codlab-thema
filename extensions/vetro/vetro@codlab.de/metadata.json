@@ -2,6 +2,10 @@
   "uuid": "vetro@codlab.de",
   "name": "Vetro CodLab",
   "description": "Il vetro liquido CodLab per barra, dock, menu, calendario, notifiche e OSD: lente e filo di luce sul bordo, riflesso che segue il puntatore con calma (fermo con «riduci animazioni»), vetro che passa da fumé a latteo secondo ciò che sta dietro, testo sempre ≥ 4,5:1. Si spegne da solo se lo shader fallisce.",
-  "shell-version": ["51"],
-  "version": 1
+  "shell-version": [
+    "51"
+  ],
+  "version": 1,
+  "license": "GPL-3.0-or-later",
+  "copyright": "Copyright (C) 2026 CodLab UG (haftungsbeschränkt)"
 }

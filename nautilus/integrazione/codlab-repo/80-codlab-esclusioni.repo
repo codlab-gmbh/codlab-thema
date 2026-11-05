@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
 # /etc/dnf/repos.override.d/80-codlab-esclusioni.repo (pacchetto codlab-repo)
 #
 # I pacchetti che CodLab ricostruisce da se' non si prendono dai repo BINARI di Fedora: li offre solo

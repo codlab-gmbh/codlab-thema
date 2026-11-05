@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
 // Quiete delle aree (29.10.2026).
 //
 // Il difetto, nella Shell 51 (windowManager.js, WorkspaceTracker): a ogni cambio d'area «switch-workspace» mette in

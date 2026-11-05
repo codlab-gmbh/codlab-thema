@@ -2,6 +2,10 @@
   "uuid": "rimbalzo@codlab.de",
   "name": "Rimbalzo nel dock",
   "description": "Come il Dock di macOS con «Animazione apertura applicazioni»: l'icona dell'app che si sta avviando rimbalza nel dock finché l'app non è pronta (al massimo 6 salti). Solo animazione, nessuna impostazione (prototipo).",
-  "shell-version": ["51"],
-  "version": 1
+  "shell-version": [
+    "51"
+  ],
+  "version": 1,
+  "license": "GPL-3.0-or-later",
+  "copyright": "Copyright (C) 2026 CodLab UG (haftungsbeschränkt)"
 }

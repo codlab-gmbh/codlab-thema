@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
 --- a/src/nautilus-files-view.c
 +++ b/src/nautilus-files-view.c
 @@ -3403,6 +3403,36 @@

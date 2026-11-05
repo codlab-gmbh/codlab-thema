@@ -200,8 +200,8 @@ aufgenommen.*
 
 Jedes Stück durchläuft dieselbe Kette, und auf die Kette kommt es an:
 
-1. **Ein Autor, zwei unabhängige Prüfer.** Jedes Stück schreibt ein Modell, geprüft wird es von mehreren unabhängigen
-   Modellen. Die beiden Prüfer, die freigeben, lesen das Urteil des anderen nicht, und **sie führen aus**: Sie
+1. **Ein Autor, zwei unabhängige Prüfer.** Jedes Stück hat einen Autor und zwei unabhängige
+   Prüfer. Die beiden Prüfer, die freigeben, lesen das Urteil des anderen nicht, und **sie führen aus**: Sie
    reproduzieren Fehler, machen Rot-vorher/Grün-nachher-Prüfungen und Mutationstests (absichtlich kaputte Kopien, die
    die Tests erkennen müssen). **Wer schreibt, gibt die eigene Arbeit nie frei.**
 2. **Eine Note pro Bereich, kein Durchschnitt.** Ein Stück kommt nur bei 9,5 von 10 in jedem Bereich ins Paket. Für den
@@ -305,7 +305,14 @@ Schriften. „Flüssiges Glas" beschreibt den Effekt; unserer heißt CodLab Vetr
 **Aufgebaut auf der Arbeit** des GNOME-Projekts (Shell, Mutter, GTK, libadwaita, Dateien), von adw-gtk3, den Colloid-
 Symbol- und -Zeiger-Themes, der Erweiterung *Blur my Shell* und von Fedora. Danke.
 
-**Lizenz.** Der Text dieses Berichts steht unter [CC BY 4.0](LICENSES/CC-BY-4.0.txt), die Bildschirmfotos in `docs/img/` unter [CC BY-SA 4.0](LICENSES/CC-BY-SA-4.0.txt), weil sie Symbole und Mauszeiger aus GPL- bzw. CC-BY-SA-Themes zeigen. Später hier veröffentlichter Code steht unter GPL-3.0-or-later (Patches für Nautilus GPL-3.0-or-later, für dessen Erweiterungsbibliothek LGPL-2.1-or-later, GNOME-Shell-Erweiterungen GPL-2.0-or-later), pro Datei mit SPDX-Kopfzeilen. Komponenten Dritter behalten ihre eigenen Lizenzen. Siehe [LICENSE.md](LICENSE.md).
+**Lizenz.** Sämtlicher Code in diesem Repository — Erweiterungen, Skripte, Paketierung und Nautilus-Patches — steht
+unter [GPL-3.0-or-later](LICENSE). Copyright (C) 2026 CodLab UG (haftungsbeschränkt).
+
+### Licenze / Lizenzen
+
+Der Bericht bleibt unter [CC BY 4.0](LICENSES/CC-BY-4.0.txt), Bildschirmfotos in `docs/img/` bleiben unter
+[CC BY-SA 4.0](LICENSES/CC-BY-SA-4.0.txt). Beide sind von Binärpaketen ausgeschlossen. Die Dokumentation der
+Komponenten wird unter GPL-3.0-or-later mitgeliefert. Komponenten Dritter behalten ihre Lizenzen. Siehe [LICENSE.md](LICENSE.md).
 
 ## 11. Code in diesem Repository
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
 // Dock dal bordo (30.10.2026).
 //
 // La richiesta: sul secondo monitor (2K) il dock non deve stare a schermo, ma si deve poter richiamare spingendo il

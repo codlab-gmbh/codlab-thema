@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
 // Recenti e azioni (29.10.2026).
 //
 // Quello che Spotlight fa e la ricerca della panoramica di GNOME 51 no, tutto in locale (nessuna rete):

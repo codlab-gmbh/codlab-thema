@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later
+ * Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
+ */
 /* Vassoio: righe del menu ⌄ come le voci di sistema; il resto lo decide il tema (e il vetro, se c'è). */
 .vassoio-riga { spacing: 12px; }
 .vassoio-riga .popup-menu-icon { icon-size: 16px; }

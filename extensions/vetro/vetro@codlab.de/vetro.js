@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
 // vetro.js — il materiale del Vetro CodLab: cattura di ciò che sta dietro una superficie e un solo shader GLSL.
 //
 // 03.11.2026. Tecnica imparata leggendo Blur my Shell 77

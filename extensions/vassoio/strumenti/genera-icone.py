@@ -1,4 +1,6 @@
 #!/usr/bin/python3 -B
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
 """Le icone a filo del vassoio (04.11.2026), generate: niente `stroke` (St forza `fill` su path/rect/circle, trappola del
 giro 10), solo sagome piene; i contorni sono ANELLI pieni (`fill-rule="evenodd"`, contorno esterno + interno spostato
 dello spessore T). Il glifo dello stato sta dentro l'anello; errore e registrazione hanno class="error" (colore d'errore

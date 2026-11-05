@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
 # nautilus-barra-aggiorna — dal 02.11.2026 e' solo l'ingresso storico (nautilus-barra.service/.timer)
 # di codlab-nautilus-ricostruisci, che ricostruisce il Nautilus CodLab A MONTE di Fedora e lo pubblica
 # nel repo locale «codlab» senza installare niente a caldo (vedi la sua intestazione).

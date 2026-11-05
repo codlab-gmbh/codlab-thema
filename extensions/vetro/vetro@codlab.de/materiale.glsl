@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
 // materiale.glsl — il vetro CodLab (03.11.2026). Un solo passaggio sulla cattura di ciò che sta dietro la superficie
 // (texture del livello 0 con mipmap, coordinate 0..1 sulla superficie). Unità: pixel veri del framebuffer.
 // Ordine: maschera a rettangolo arrotondato → lente nella fascia del bordo (con dispersione) → sfocatura a 5 prese sul

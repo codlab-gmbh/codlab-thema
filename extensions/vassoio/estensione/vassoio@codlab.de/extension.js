@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
 // Vassoio (04.11.2026): l'area delle icone di stato della barra. Tre pezzi indipendenti, creati in enable e tolti in
 // disable: le icone a filo (uniforma.js), l'ordine/posto/doppioni con il menu ⌄ (vassoio.js), il testimone di Mochi
 // (testimone.js). Disabilitandola la barra torna com'era: contenitori rimostrati, icone dei proprietari, menu

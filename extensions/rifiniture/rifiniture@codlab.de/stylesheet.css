@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later
+ * Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
+ */
 /* Rifiniture (30.10.2026). Nel foglio del tema (Colloid) queste regole PERDONO contro Blur my Shell: provato nella Shell isolata. */
 /* Gli stati ATTIVI pieni col testo bianco a contrasto AA (>= 4,5:1).
    Blur my Shell 76 (componente popup, stile «dark», classe sul Main.uiGroup) li riempie con -st-accent-color = #3584e4

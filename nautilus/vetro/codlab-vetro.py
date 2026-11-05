@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
 """CodLab vetro per File (01.11.2026).
 
 Il vetro della barra laterale (e, con la variante B, della barra del titolo) dentro File.

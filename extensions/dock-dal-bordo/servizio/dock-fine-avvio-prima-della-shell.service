@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
 [Unit]
 Description=Dock dal bordo: multi-monitor di Dash to Dock spento fino a fine avvio (dock-dal-bordo lo riaccende)
 Documentation=https://github.com/codlab-gmbh/codlab-thema/tree/main/extensions/dock-dal-bordo

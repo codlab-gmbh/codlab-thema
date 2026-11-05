@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
 // Vetro CodLab (03–04.11.2026).
 //
 // Un vetro liquido nostro per barra, dock, menu del pannello

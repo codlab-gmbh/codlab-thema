@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
 # /etc/yum.repos.d/codlab.repo — il repo locale dei pacchetti CodLab costruiti su questa macchina (pacchetto codlab-repo).
 #
 # Fonte unica dei pacchetti nostri: nautilus/nautilus-extensions ricostruiti con le patch CodLab
