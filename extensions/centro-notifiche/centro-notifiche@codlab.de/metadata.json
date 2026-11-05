@@ -1,0 +1,7 @@
+{
+  "uuid": "centro-notifiche@codlab.de",
+  "name": "Gestione notifiche",
+  "description": "Elenco e chiusura delle notifiche GNOME per il comando notifiche.",
+  "shell-version": ["51"],
+  "version": 1
+}
