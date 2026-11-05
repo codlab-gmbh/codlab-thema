@@ -1,0 +1,9 @@
+{
+  "uuid": "dock-dal-bordo@codlab.de",
+  "name": "Dock dal bordo",
+  "description": "Sul monitor che non è il principale il dock di Dash to Dock non resta a schermo: compare quando il puntatore spinge sul bordo basso e sparisce quando lo lascia, come il Dock di macOS con «nascondi automaticamente». Il dock del monitor principale non cambia. Versione 2: durante l'avvio della Shell multi-monitor resta spento e si riaccende a fine avvio, così il dock del 2K nasce nello stage (niente avvisi st_widget_get_theme_node).",
+  "shell-version": [
+    "51"
+  ],
+  "version": 2
+}

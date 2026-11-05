@@ -1,0 +1,13 @@
+[Unit]
+Description=Dock dal bordo: multi-monitor di Dash to Dock spento fino a fine avvio (dock-dal-bordo lo riaccende)
+Documentation=https://github.com/codlab-gmbh/codlab-thema/tree/main/extensions/dock-dal-bordo
+ConditionPathExists=%h/.local/share/gnome-shell/extensions/dock-dal-bordo@codlab.de/extension.js
+Before=gnome-session-pre.target gnome-session-manager.target org.gnome.Shell@user.service org.gnome.Shell@wayland.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 -B %h/.local/bin/dock-fine-avvio-prima-della-shell
+TimeoutStartSec=15
+
+[Install]
+WantedBy=gnome-session-pre.target
