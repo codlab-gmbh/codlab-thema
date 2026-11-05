@@ -37,6 +37,9 @@ except (ImportError, ValueError):
 QUI = Path(__file__).resolve().parent
 FOGLIO = QUI / "codlab-vetro.css"
 SPENTO = Path(GLib.get_user_config_dir()) / "codlab-vetro" / "spento"
+# Le copie di sistema richiedono il consenso esplicito del singolo utente.
+DI_SISTEMA = str(QUI).startswith('/usr/')
+ATTIVO = Path(GLib.get_user_config_dir()) / 'codlab-thema' / 'attivo'
 PRIORITA = Gtk.STYLE_PROVIDER_PRIORITY_USER + 1     # sopra il gtk.css dell'utente (800)
 PREFERENZE = (("gtk-interface-contrast", "prefers-contrast"), ("gtk-interface-color-scheme", "prefers-color-scheme"),
               ("gtk-interface-reduced-motion", "prefers-reduced-motion"))
@@ -84,7 +87,7 @@ def _controlla(*_):
     """Ogni 2 s (due stat, costo trascurabile) e a ogni cambio del contrasto: interruttore, contrasto, foglio cambiato."""
     try:
         elevato = _contrasto_elevato()
-        voluto = not SPENTO.exists() and FOGLIO.is_file() and not elevato
+        voluto = (not DI_SISTEMA or ATTIVO.is_file()) and not SPENTO.exists() and FOGLIO.is_file() and not elevato
         if not voluto and _s["prov"] is not None:
             _togli()
             _scrivi("spento a caldo" if SPENTO.exists() else

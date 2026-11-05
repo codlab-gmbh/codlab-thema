@@ -341,6 +341,13 @@ Alle Teile sind für GNOME Shell 51 und Dateien (Nautilus) 51 auf Fedora 45. Bin
 veröffentlicht: Dateien wird aus dem Quellpaket von Fedora mit der Patch-Serie neu gebaut. Den Prüfstand jedes Teils,
 Stand 1. November, nennt [§7](#7-ehrlicher-stand). Lizenzen: siehe [LICENSE.md](LICENSE.md).
 
+## Sostieni CodLab Thema
+
+CodLab Thema resta libero e gratuito. Se ti è utile, una donazione è gradita:
+[PayPal CodLab](https://www.paypal.com/paypalme/codlabUG). Grazie!
+
+*English: CodLab Thema is free software. If you find it useful, donations are welcome via the link above.*
+
 ---
 
 <p align="center">Ein Projekt von <a href="https://codlab.de/projects/">CodLab</a> · Raum Regensburg</p>

@@ -331,6 +331,13 @@ All pieces target GNOME Shell 51 and Files (Nautilus) 51 on Fedora 45. No binary
 is rebuilt from Fedora's source package with the patch series. The review status of each piece, as of 1 November, is
 in [§7](#7-honest-status). Licences: see [LICENSE.md](LICENSE.md).
 
+## Sostieni CodLab Thema
+
+CodLab Thema resta libero e gratuito. Se ti è utile, una donazione è gradita:
+[PayPal CodLab](https://www.paypal.com/paypalme/codlabUG). Grazie!
+
+*English: CodLab Thema is free software. If you find it useful, donations are welcome via the link above.*
+
 ---
 
 <p align="center">Made by <a href="https://codlab.de/en/projects/">CodLab</a> · Regensburg area, Germany</p>

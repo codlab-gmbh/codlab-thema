@@ -1,0 +1,104 @@
+#!/usr/bin/python3 -B
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
+"""Attivazione esplicita delle estensioni di sistema per il solo utente corrente."""
+import argparse
+import ast
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+import tempfile
+
+DATI = Path(__file__).resolve().parents[1] / 'share/codlab-thema/extensions.json'
+SERVIZIO = 'dock-fine-avvio-prima-della-shell.service'
+DONAZIONI = 'https://www.paypal.com/paypalme/codlabUG'
+
+
+def esegui(*args):
+    r = subprocess.run(args, text=True, capture_output=True, timeout=20)
+    if r.returncode:
+        raise RuntimeError(r.stderr.strip() or f'{args[0]}: uscita {r.returncode}')
+    return r.stdout.strip()
+
+
+def elenco(chiave):
+    text = esegui('gsettings', 'get', 'org.gnome.shell', chiave)
+    if text.startswith('@as '):
+        text = text[4:]
+    value = ast.literal_eval(text)
+    if not isinstance(value, list) or not all(isinstance(x, str) for x in value):
+        raise RuntimeError(f'Valore non valido: {chiave}')
+    return value
+
+
+def imposta(chiave, value):
+    esegui('gsettings', 'set', 'org.gnome.shell', chiave, repr(value))
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('azione', choices=['attiva', 'disattiva', 'stato'])
+    args = parser.parse_args()
+    uuids = json.loads(DATI.read_text())
+    config = Path(os.environ.get('XDG_CONFIG_HOME') or Path.home() / '.config')
+    marker = config / 'codlab-thema/attivo'
+    enabled, disabled = elenco('enabled-extensions'), elenco('disabled-extensions')
+    if args.azione == 'stato':
+        for uuid in uuids:
+            print(f'{uuid}: {"attiva nelle preferenze" if uuid in enabled and uuid not in disabled else "disattiva"}')
+        print(f'File: {"abilitato" if marker.exists() else "disabilitato"} per questo utente')
+        print('Lo stato effettivo della Shell si vede con gnome-extensions list --active.')
+        print(f'Ti piace? Una donazione è gradita: {DONAZIONI}')
+        return 0
+    if os.geteuid() == 0:
+        raise RuntimeError('Esegui questo comando come utente del desktop.')
+    if args.azione == 'attiva':
+        version = esegui('gnome-shell', '--version')
+        if not re.search(r'\b51(?:\.|\b)', version):
+            raise RuntimeError('È richiesta GNOME Shell 51.')
+        local = Path(os.environ.get('XDG_DATA_HOME') or Path.home() / '.local/share') / 'gnome-shell/extensions'
+        shadows = [u for u in uuids if (local / u).exists()]
+        if shadows:
+            raise RuntimeError('Copia personale con precedenza sul pacchetto: ' + ', '.join(shadows))
+    # Nessun avvio o ricaricamento: il servizio interviene solo al prossimo accesso.
+    previous_marker = marker.read_bytes() if marker.exists() else None
+    previous_service = (config / 'systemd/user/gnome-session-pre.target.wants' / SERVIZIO).is_symlink()
+    try:
+        if args.azione == 'attiva':
+            esegui('systemctl', '--user', '--no-reload', 'enable', SERVIZIO)
+            marker.parent.mkdir(parents=True, exist_ok=True)
+            with tempfile.NamedTemporaryFile(dir=marker.parent, delete=False) as f:
+                f.write(b'CodLab Thema\n'); tmp = Path(f.name)
+            tmp.replace(marker)
+            imposta('disabled-extensions', [u for u in disabled if u not in uuids])
+            imposta('enabled-extensions', enabled + [u for u in uuids if u not in enabled])
+        else:
+            esegui('systemctl', '--user', '--no-reload', 'disable', SERVIZIO)
+            marker.unlink(missing_ok=True)
+            imposta('enabled-extensions', [u for u in enabled if u not in uuids])
+            imposta('disabled-extensions', disabled + [u for u in uuids if u not in disabled])
+    except Exception:
+        imposta('enabled-extensions', enabled)
+        imposta('disabled-extensions', disabled)
+        if previous_marker is None:
+            marker.unlink(missing_ok=True)
+        else:
+            marker.parent.mkdir(parents=True, exist_ok=True)
+            marker.write_bytes(previous_marker)
+        esegui('systemctl', '--user', '--no-reload', 'enable' if previous_service else 'disable', SERVIZIO)
+        raise
+    print('Preferenze aggiornate. Le estensioni nuove saranno disponibili al prossimo accesso.')
+    print('Il vetro in File segue la preferenza entro due secondi, se File lo ha già caricato.')
+    print('Le altre estensioni e le preferenze di Blur my Shell restano configurabili separatamente.')
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main())
+    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as e:
+        print(f'codlab-thema: {e}', file=sys.stderr)
+        sys.exit(1)

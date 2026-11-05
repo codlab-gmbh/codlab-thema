@@ -332,6 +332,13 @@ Tutti i pezzi sono per GNOME Shell 51 e File (Nautilus) 51 su Fedora 45. Qui non
 File si ricostruisce dal pacchetto sorgente di Fedora con la serie di patch. Lo stato delle revisioni di ogni pezzo,
 al 1° novembre, è nel [§7](#7-stato-onesto). Licenze: vedi [LICENSE.md](LICENSE.md).
 
+## Sostieni CodLab Thema
+
+CodLab Thema resta libero e gratuito. Se ti è utile, una donazione è gradita:
+[PayPal CodLab](https://www.paypal.com/paypalme/codlabUG). Grazie!
+
+*English: CodLab Thema is free software. If you find it useful, donations are welcome via the link above.*
+
 ---
 
 <p align="center">Un progetto di <a href="https://codlab.de/it/projects/">CodLab</a> · area di Regensburg</p>
