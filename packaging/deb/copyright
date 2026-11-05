@@ -1,0 +1,21 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: CodLab Thema
+Upstream-Contact: CodLab <info@codlab.de>
+Source: https://github.com/codlab-gmbh/codlab-thema
+
+Files: *
+Copyright: 2026 CodLab UG (haftungsbeschränkt)
+License: GPL-3+
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+ .
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ GNU General Public License for more details.
+ .
+ The complete license is installed in
+ /usr/share/licenses/codlab-thema/LICENSE. On Debian systems it is
+ also available in /usr/share/common-licenses/GPL-3.

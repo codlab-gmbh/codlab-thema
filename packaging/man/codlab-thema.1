@@ -1,0 +1,32 @@
+.\" SPDX-License-Identifier: GPL-3.0-or-later
+.\" Copyright (C) 2026 CodLab UG (haftungsbeschränkt)
+.TH CODLAB-THEMA 1 "2026-11-05" "CodLab Thema 0.1.0" "User Commands"
+.SH NAME
+codlab-thema \- manage CodLab Thema for the current desktop user
+.SH SYNOPSIS
+.B codlab-thema
+.RI "attiva | disattiva | stato"
+.SH DESCRIPTION
+System extensions for GNOME Shell 51 and optional glass effects inside Files.
+Package installation does not activate them for any user.
+.SH COMMANDS
+.TP
+.B attiva
+Enable the packaged extensions for the current user. Requires GNOME Shell 51.
+New system extensions become available on the next login.
+.TP
+.B disattiva
+Disable the packaged extensions while preserving other extensions.
+Run this command before removing the package.
+.TP
+.B stato
+Display configured activation and the optional donation link.
+.SH FILES
+.TP
+.I $XDG_CONFIG_HOME/codlab-thema/attivo
+Explicit consent for glass effects inside Files.
+.SH SEE ALSO
+.BR gnome-extensions (1),
+.BR gsettings (1)
+.SH AUTHORS
+CodLab <info@codlab.de>

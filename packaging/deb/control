@@ -1,0 +1,16 @@
+Package: codlab-thema
+Version: 0.1.0-1
+Section: gnome
+Priority: optional
+Architecture: all
+Maintainer: CodLab <info@codlab.de>
+Homepage: https://github.com/codlab-gmbh/codlab-thema
+Depends: python3 (>= 3.9), python3-gi, python3-nautilus (>= 4.0), gnome-shell (>= 51~), gnome-shell (<< 52~), nautilus (>= 51~), nautilus (<< 52~), gir1.2-gtk-4.0 (>= 4.24), gir1.2-adw-1, gir1.2-glib-2.0, libglib2.0-bin, systemd
+Description: CodLab desktop extensions for GNOME Shell 51
+ Ten system extensions, symbolic icons and glass effects inside Files.
+ Activation is explicit for each desktop user with codlab-thema.
+ Supports GNOME Shell 51 and Nautilus 51 with GTK 4.24 and Wayland.
+ Nautilus binaries, reports and screenshots are excluded.
+ .
+ Free software by CodLab UG (haftungsbeschraenkt).
+ Donations are welcome: https://www.paypal.com/paypalme/codlabUG

@@ -1,0 +1,16 @@
+{
+  "license": "GPL-3.0-or-later",
+  "copyright": "Copyright (C) 2026 CodLab UG (haftungsbeschränkt)",
+  "extensions": [
+    "extensions/centro-notifiche/centro-notifiche@codlab.de",
+    "extensions/dock-dal-bordo/dock-dal-bordo@codlab.de",
+    "extensions/launchpad/launchpad@codlab.de",
+    "extensions/quiete-aree/quiete-aree@codlab.de",
+    "extensions/ricerca-azioni/ricerca-azioni@codlab.de",
+    "extensions/rifiniture/rifiniture@codlab.de",
+    "extensions/rimbalzo/rimbalzo@codlab.de",
+    "extensions/svuota-notifiche/svuota-notifiche@codlab",
+    "extensions/vassoio/estensione/vassoio@codlab.de",
+    "extensions/vetro/vetro@codlab.de"
+  ]
+}

@@ -1,2 +1,7 @@
 extensions/*/posa/ritorni/
 __pycache__/
+
+/dist/
+/build/
+*.rpm
+*.deb

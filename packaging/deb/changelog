@@ -1,0 +1,5 @@
+codlab-thema (0.1.0-1) unstable; urgency=medium
+
+  * Initial packaging for GNOME Shell 51 with explicit per-user activation.
+
+ -- CodLab <info@codlab.de>  Thu, 05 Nov 2026 09:15:00 +0100
