@@ -307,8 +307,8 @@ componenti accompagna il codice sotto GPL-3.0-or-later. I componenti di terzi ma
 
 ## 11. Il codice in questo repository
 
-Dal 5 novembre 2026 questo repository contiene anche il codice sorgente dei pezzi installati sulla postazione di
-sviluppo, così com'è installato (per la pubblicazione sono stati toccati solo commenti e descrizioni). Ogni cartella
+Dal 5 novembre 2026 questo repository contiene anche il codice sorgente dei componenti usati sulla postazione di
+sviluppo. Il packaging aggiunge installazione di sistema e attivazione esplicita per ogni utente. Ogni cartella
 ha un README breve — in italiano, con una riga di riassunto in inglese — che dice che cosa fa il pezzo e come si
 installa e si toglie.
 

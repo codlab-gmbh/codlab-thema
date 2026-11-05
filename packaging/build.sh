@@ -22,6 +22,9 @@ mkdir -p "$work/source/$name" "$work/rpm/SOURCES" "$work/rpm/SPECS"
 # Solo sorgenti di codice e documentazione GPL, nessun resoconto o schermata CC.
 git -C "$src" archive HEAD extensions nautilus packaging LICENSE LICENSES/GPL-3.0-or-later.txt .github/FUNDING.yml |
     tar -xf - -C "$work/source/$name"
+# La guida nell'archivio è quella GPL dei pacchetti, senza il resoconto CC.
+cp "$work/source/$name/packaging/README.md" "$work/source/$name/README.md"
+cp "$work/source/$name/LICENSE" "$work/source/$name/LICENSE.md"
 python3 "$work/source/$name/packaging/validate.py" --source "$work/source/$name"
 tar --sort=name --mtime="@$SOURCE_DATE_EPOCH" --owner=0 --group=0 --numeric-owner \
     -czf "$work/rpm/SOURCES/$name.tar.gz" -C "$work/source" "$name"

@@ -26,3 +26,10 @@ rm -r ~/.local/share/gnome-shell/extensions/svuota-notifiche@codlab
 ```
 
 Licenza: vedi [LICENSE.md](../../LICENSE.md).
+
+## Pacchetto di sistema
+
+Il pacchetto `codlab-thema` installa questo componente sotto `/usr` e usa
+`codlab-thema attiva|disattiva|stato` per il singolo utente. Vedi la
+[guida dei pacchetti](../../packaging/README.md). Le istruzioni precedenti restano per la posa
+manuale dal sorgente; le copie personali hanno precedenza sulle copie di sistema.

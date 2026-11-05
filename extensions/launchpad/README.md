@@ -25,3 +25,10 @@ rm -r ~/.local/share/gnome-shell/extensions/launchpad@codlab.de
 ```
 
 Licenza: GPL-2.0-or-later, come dichiarato in testa a `extension.js` (vedi anche [LICENSE.md](../../LICENSE.md)).
+
+## Pacchetto di sistema
+
+Il pacchetto `codlab-thema` installa questo componente sotto `/usr` e usa
+`codlab-thema attiva|disattiva|stato` per il singolo utente. Vedi la
+[guida dei pacchetti](../../packaging/README.md). Le istruzioni precedenti restano per la posa
+manuale dal sorgente; le copie personali hanno precedenza sulle copie di sistema.

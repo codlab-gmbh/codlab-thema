@@ -316,9 +316,8 @@ Komponenten wird unter GPL-3.0-or-later mitgeliefert. Komponenten Dritter behalt
 
 ## 11. Code in diesem Repository
 
-Seit dem 5. November 2026 enthält dieses Repository auch den Quellcode der Teile, die auf der Entwicklungs-Workstation
-installiert sind, genau so wie installiert (für die Veröffentlichung wurden nur Kommentare und Beschreibungen
-bearbeitet). Jeder Ordner hat ein kurzes README — auf Italienisch, mit einer Zusammenfassung in einer Zeile auf
+Seit dem 5. November 2026 enthält dieses Repository auch den Quellcode der Komponenten auf der Entwicklungs-Workstation.
+Die Paketierung ergänzt die systemweite Installation und die ausdrückliche Aktivierung für jeden Benutzer. Jeder Ordner hat ein kurzes README — auf Italienisch, mit einer Zusammenfassung in einer Zeile auf
 Englisch —, das sagt, was das Teil tut und wie man es installiert und entfernt.
 
 | Ordner | Was es ist |

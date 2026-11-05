@@ -44,3 +44,10 @@ A mano: `gnome-extensions disable vetro@codlab.de`, poi `rm -r ~/.local/share/gn
 ~/.local/state/vetro-codlab`.
 
 Licenza: vedi [LICENSE.md](../../LICENSE.md).
+
+## Pacchetto di sistema
+
+Il pacchetto `codlab-thema` installa questo componente sotto `/usr` e usa
+`codlab-thema attiva|disattiva|stato` per il singolo utente. Vedi la
+[guida dei pacchetti](../../packaging/README.md). Le istruzioni precedenti restano per la posa
+manuale dal sorgente; le copie personali hanno precedenza sulle copie di sistema.

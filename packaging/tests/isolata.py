@@ -27,8 +27,8 @@ with tempfile.TemporaryDirectory(prefix='codlab-radice-') as name:
     if args.formato == 'rpm':
         for tag in ['PREIN', 'POSTIN', 'PREUN', 'POSTUN', 'PRETRANS', 'POSTTRANS']:
             assert run('rpm', '-qp', '--qf', '%{' + tag + '}', package).stdout == '(none)', tag
-        run('rpm', '--root', root, '--initdb')
-        run('rpm', '--root', root, '-i', '--nodeps', '--nosignature', package)
+        run('rpm', '--root', root, '--dbpath', '/var/lib/rpm', '--initdb')
+        run('rpm', '--root', root, '--dbpath', '/var/lib/rpm', '-i', '--nodeps', '--nosignature', package)
     else:
         control = root / 'controllo'
         run('dpkg-deb', '-e', package, control)
@@ -37,7 +37,9 @@ with tempfile.TemporaryDirectory(prefix='codlab-radice-') as name:
         shutil.rmtree(control)
         (root / 'var/lib/dpkg').mkdir(parents=True)
         (root / 'var/lib/dpkg/status').touch()
-        run('dpkg', '--root=' + str(root), '--force-depends', '--install', package)
+        # Le immagini minime possono escludere manuali e documentazione tramite dpkg.cfg.
+        run('dpkg', '--root=' + str(root), '--path-include=/usr/share/doc/*',
+            '--path-include=/usr/share/man/*', '--force-depends', '--install', package)
     print(run('python3', validator, '--root', root).stdout.strip())
     manifest = json.loads((root / 'usr/share/codlab-thema/manifest.json').read_text())
     files = [root / p for p in manifest] + [root / 'usr/share/codlab-thema/manifest.json']
@@ -64,13 +66,13 @@ with tempfile.TemporaryDirectory(prefix='codlab-radice-') as name:
     os.utime(schema, ns=(schema_stat.st_atime_ns, schema_stat.st_mtime_ns))
     print(run('python3', validator, '--root', root).stdout.strip())
     if args.formato == 'rpm':
-        run('rpm', '--root', root, '--nodeps', '-V', 'codlab-thema')
-        run('rpm', '--root', root, '-e', 'codlab-thema')
-        assert run('rpm', '--root', root, '-q', 'codlab-thema', expected=1).returncode != 0
+        run('rpm', '--root', root, '--dbpath', '/var/lib/rpm', '--nodeps', '-V', 'codlab-thema')
+        run('rpm', '--root', root, '--dbpath', '/var/lib/rpm', '-e', 'codlab-thema')
+        assert run('rpm', '--root', root, '--dbpath', '/var/lib/rpm', '-q', 'codlab-thema', expected=1).returncode != 0
     else:
         run('dpkg', '--root=' + str(root), '--verify', 'codlab-thema')
         run('dpkg', '--root=' + str(root), '--purge', 'codlab-thema')
     assert not any(p.exists() for p in files), 'File del pacchetto residui'
-    assert not (root / 'usr').exists() or not any(p.is_file() or p.is_symlink() for p in (root / 'usr').rglob('*')), 'Residui in /usr'
+    assert not (root / 'usr').exists() or not any(p.is_file() or p.is_symlink() for p in (root / 'usr').rglob('*')), 'Residui in /usr: ' + repr([str(p.relative_to(root)) for p in (root / 'usr').rglob('*') if p.is_file() or p.is_symlink()])
     print(f'VERDE {args.formato}: installazione e rimozione in radice isolata, tre mutanti rifiutati, zero file residui')
     print('Dipendenze escluse solo nella radice di prova vuota; nessuna prova della sessione grafica o risoluzione delle dipendenze.')

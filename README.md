@@ -306,8 +306,8 @@ ships with the code under GPL-3.0-or-later. Third-party components keep their ow
 
 ## 11. Code in this repository
 
-Since 5 November 2026 this repository also holds the source code of the pieces installed on the development
-workstation, exactly as installed (only comments and descriptions were edited for publication). Every folder has a
+Since 5 November 2026 this repository also holds the source code of the components used on the development
+workstation. The packaging adds system installation and explicit activation for each user. Every folder has a
 short README — in Italian, with a one-line English summary — that says what the piece does and how to install and
 remove it.
 
